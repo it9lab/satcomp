@@ -82,10 +82,11 @@ def parse_args():
 
 
 if __name__ == "__main__":
+    #sys.getrecursionlimit(100000)
     args = parse_args()
 
     if args.str != "":
-        text = bytes(args.str, "utf-8")
+        text = bytes(args.str, "utf-8") # byte型
 
     else:
         text = open(args.file, "rb").read()
@@ -107,7 +108,7 @@ if __name__ == "__main__":
     minsz = len(text) * 2
     ming = None
     solutioncounter = 0
-    for tree in enum_ordered(text):
+    for tree in enum_ordered(text): # tree:Nodeオブジェクト(int, int)
         solutioncounter += 1
         logger.info(tree)
         nodedic = {}
