@@ -126,7 +126,7 @@ class CollageSystemLiteralManager(LiteralManager):
         # print(f"verify_csref, {obj}")
         # obj = (name, i1, j1, i2, j2) phrase (i1,j1) refers to T[i2,j2);  T[i1,j1) -> T[i2,j2);
         assert len(obj) == 5
-        name, i, l1, j, l2 = obj
+        name, j, l2, i, l1 = obj
         assert name == self.lits.csref
         assert 0 <= i < self.n
         assert 0 <= j < self.n
@@ -300,8 +300,8 @@ def smallest_CollageSystem_WCNF(text: bytes):
     # print("連長圧縮左のノード", refs_by_rliterated)
     # print("連帳圧縮右のノード", refs_by_rlreferrer)
 
-    refs_by_csreferred = {} #(i,l1)がキー，(j,l2)が値
-    refs_by_csreferrer = {} #(j,l2)がキー，(i,l1)が値
+    refs_by_csreferred = {} #(j,l2)がキー，(i,l1)が値
+    refs_by_csreferrer = {} #(i,l1)がキー，(j,l2)が値
 
     #ref^cの定義
     for i in range(n):
@@ -309,35 +309,40 @@ def smallest_CollageSystem_WCNF(text: bytes):
             for l1 in range(2, cslpf[j] + 1):
                 #...[i:i+l1]...[j:j+l1]..., [i:i+l1]==[j:j+l1]
                 if i + l1 <= j and text[i : i + l1] == text[j : j + l1]:
-                    for substr_left in (i + l1, j):
-                        for substr_right in (j + l1, n):
+                    for substr_left in range(i + l1, j):
+                        for substr_right in range(j + l1, n):
                             substr_length = substr_right - substr_left
-                            lm.newid(lm.lits.csref, i, l1, substr_left, substr_length) #definition of {ref^c}_{j,l2<-i,l1}
-                            if not (i, l) in refs_by_csreferred:
-                                refs_by_csreferred[i, l1] = []
-                            refs_by_csreferred[i, l1].append(substr_left) #キー[i,l1]にj(substr_left)を格納する
-                            if not (substr_left, substr_length) in refs_by_csreferrer:
-                                refs_by_csreferrer[substr_left, substr_length] = []
-                            refs_by_csreferrer[substr_left, substr_length].append(i) #キー[j(substr_left), l2(substr_length)]にiを格納する
+                            lm.newid(lm.lits.csref, substr_left, substr_length, i, l1) #definition of {ref^c}_{j,l2<-i,l1}
+                            if not (substr_left, substr_length) in refs_by_csreferred:
+                                refs_by_csreferred[substr_left, substr_length] = []
+                            refs_by_csreferred[substr_left, substr_length].append([i, l1]) #キー[j(substr_left), l2(substr_length)]にiを格納する
+                            if not (i, l1) in refs_by_csreferrer:
+                                refs_by_csreferrer[i, l1] = []
+                            refs_by_csreferrer[i, l1].append([substr_left, substr_length]) #キー[i,l1]にj(substr_left)を格納する
                 #...[j:j+l1]...[i:i+l1]..., [j:j+l1]==[i:i+l1]
                 elif j + l1 <= i and text[j : j + l1] == text[i : i + l1]:
-                    for substr_left in (i + l1, j):
-                        for substr_right in (j + l1, n):
+                    for substr_left in range(0, j):
+                        for substr_right in range(j + l1, i):
                             substr_length = substr_right - substr_left
-                            lm.newid(lm.lits.csref, i, l1, substr_left, substr_length) #definition of {ref^c}_{j,l2<-i,l1}
-                            if not (i, l) in refs_by_csreferred:
-                                refs_by_csreferred[i, l1] = []
-                            refs_by_csreferred[i, l1].append(substr_left) #キー[i,l1]にj(substr_left)を格納する
-                            if not (substr_left, substr_length) in refs_by_csreferrer:
-                                refs_by_csreferrer[substr_left, substr_length] = []
-                            refs_by_csreferrer[substr_left, substr_length].append(i) #キー[j(substr_left), l2(substr_length)]にiを格納する
+                            lm.newid(lm.lits.csref, substr_left, substr_length, i, l1) #definition of {ref^c}_{j,l2<-i,l1}
+                            if not (substr_left, substr_length) in refs_by_csreferred:
+                                refs_by_csreferred[substr_left, substr_length] = []
+                            refs_by_csreferred[substr_left, substr_length].append([i, l1]) #キー[j(substr_left), l2(substr_length)]にiを格納する
+                            if not (i, l1) in refs_by_csreferrer:
+                                refs_by_csreferrer[i, l1] = []
+                            refs_by_csreferrer[i, l1].append([substr_left, substr_length]) #キー[i,l1]にj(substr_left)を格納する
 
     #print(f"切り取り規則の参照先={refs_by_csreferred}")
     #print(f"切り取り規則を用いて導出される文字列={refs_by_csreferrer}")
 
+    #qの定義
+    refs_by_allreferred = {}
 
-    # q'の定義（一旦保留）
-    # q'=1ならば,q=1を表すノード, 連長圧縮ルール全体で表されるノード or 連長圧縮ルールの一番左のノードに対応する
+    
+
+
+    # qの定義
+    # q=1ならば,q=1を表すノード, 連長圧縮ルール全体で表されるノード or 連長圧縮ルールの一番左のノードに対応する
     referred_set1 = set(refs_by_rliterated.keys())
     referred_set2 = set(refs_by_allrule.keys())
     referred_set3 = set(refs_by_referred.keys())
