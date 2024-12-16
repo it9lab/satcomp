@@ -267,7 +267,7 @@ def smallest_CollageSystem_WCNF(text: bytes):
             #print(lpf[j])
             for l in range(2, n - i + 1):
                 if j + l <= i and text[j : j + l] == text[i : i + l]:
-                    #print(f"{text[j:j+l]}, {text[i:i+l]}")
+                    print(f"{text[j:j+l]}, {text[i:i+l]}")
                     lm.newid(lm.lits.ref, j, i, l)  # definition of ref_{j<-i,l}
                     #lm.newid(lm.lits.dref, i, j, l) # definition of dref_{i->j,l}
                     if not (j, l) in refs_by_referred:
@@ -292,7 +292,7 @@ def smallest_CollageSystem_WCNF(text: bytes):
                 # 二つの文字列は，一部のみ重複かつ一致していて，重複していない部分の長さは文字列の長さを余り無しで割り切れる
                 if i < j + l  and text[j : j + l] == text[i : i + l] and (l % (i - j)) == 0:
                     lm.newid(lm.lits.rlref, j, i, l)  # definition of {ref^r}_{j<-i,l}
-                    #print(f"{text[j:i+l]},{text[j:i]},{text[i:i+l]}")
+                    print(f"{text[j:i+l]},{text[j:i]},{text[i:i+l]}")
                     #print(f"全体{j, l+i-j}, 左の子{j, i-j}, 右の子{i, l}")
                     if not (j, l + i - j) in refs_by_allrule:
                         refs_by_allrule[j, l + i - j] = []
@@ -340,8 +340,8 @@ def smallest_CollageSystem_WCNF(text: bytes):
                                 refs_by_csreferrer[i, l1] = []
                             refs_by_csreferrer[i, l1].append([substr_left, substr_length]) #キー[i,l1]にj(substr_left)を格納する
 
-    print(f"切り取り規則の参照先={refs_by_csreferred}")
-    print(f"切り取り規則を用いて導出される文字列={refs_by_csreferrer}")
+    #print(f"切り取り規則の参照先={refs_by_csreferred}")
+    #print(f"切り取り規則を用いて導出される文字列={refs_by_csreferrer}")
 
     #qの定義
     refs_by_allreferred = list(set(refs_by_referred.keys())|set(refs_by_rliterated.keys())|set(refs_by_csreferred.keys())|set(refs_by_allrule.keys()))
