@@ -267,7 +267,7 @@ def smallest_CollageSystem_WCNF(text: bytes):
             #print(lpf[j])
             for l in range(2, n - i + 1):
                 if j + l <= i and text[j : j + l] == text[i : i + l]:
-                    print(f"{text[j:j+l]}, {text[i:i+l]}")
+                    #print(f"{text[j:j+l]}, {text[i:i+l]}")
                     lm.newid(lm.lits.ref, j, i, l)  # definition of ref_{j<-i,l}
                     #lm.newid(lm.lits.dref, i, j, l) # definition of dref_{i->j,l}
                     if not (j, l) in refs_by_referred:
@@ -277,8 +277,8 @@ def smallest_CollageSystem_WCNF(text: bytes):
                         refs_by_referrer[i, l] = []
                     refs_by_referrer[i, l].append(j) #キー[i,l]にjを格納する
 
-    print(f"SLPの参照先 = {refs_by_referred}")
-    print(f"SLPの参照元 = {refs_by_referrer}")
+    #print(f"SLPの参照先 = {refs_by_referred}")
+    #print(f"SLPの参照元 = {refs_by_referrer}")
 
 
     refs_by_allrule = {} # 連長圧縮ルール全体が表す区間の開始位置と区間長（キー），右のノードの開始位置（値）
@@ -292,7 +292,7 @@ def smallest_CollageSystem_WCNF(text: bytes):
                 # 二つの文字列は，一部のみ重複かつ一致していて，重複していない部分の長さは文字列の長さを余り無しで割り切れる
                 if i < j + l  and text[j : j + l] == text[i : i + l] and (l % (i - j)) == 0:
                     lm.newid(lm.lits.rlref, j, i, l)  # definition of {ref^r}_{j<-i,l}
-                    print(f"{text[j:i+l]},{text[j:i]},{text[i:i+l]}")
+                    #print(f"{text[j:i+l]},{text[j:i]},{text[i:i+l]}")
                     #print(f"全体{j, l+i-j}, 左の子{j, i-j}, 右の子{i, l}")
                     if not (j, l + i - j) in refs_by_allrule:
                         refs_by_allrule[j, l + i - j] = []
@@ -304,44 +304,47 @@ def smallest_CollageSystem_WCNF(text: bytes):
                         refs_by_rlreferrer[i, l] = []
                     refs_by_rlreferrer[i, l].append(j) # 参照先の位置を格納
 
-    print(f"連長圧縮ルール全体 = {refs_by_allrule}")
-    print("連長圧縮左のノード", refs_by_rliterated)
-    print("連帳圧縮右のノード", refs_by_rlreferrer)
+    #print(f"連長圧縮ルール全体 = {refs_by_allrule}")
+    #print("連長圧縮左のノード", refs_by_rliterated)
+    #print("連帳圧縮右のノード", refs_by_rlreferrer)
 
     refs_by_csreferred = {} #(j,l2)(参照先)がキー，(i,l1)(参照元)が値
     refs_by_csreferrer = {} #(i,l1)(参照元)がキー，(j,l2)(参照先)が値
 
     #ref^cの定義
-    for i in range(n):
-        for j in range(n):
-            for l1 in range(2, n + 1):
-                #...[i:i+l1]...[j:j+l1]..., [i:i+l1]==[j:j+l1]
-                if i + l1 <= j and text[i : i + l1] == text[j : j + l1]:
-                    for substr_left in range(i + l1, j + 1):
-                        for substr_right in range(j + l1, n + 1):
-                            substr_length = substr_right - substr_left
-                            lm.newid(lm.lits.csref, substr_left, substr_length, i, l1) #definition of {ref^c}_{j,l2<-i,l1}
-                            if not (substr_left, substr_length) in refs_by_csreferred:
-                                refs_by_csreferred[substr_left, substr_length] = []
-                            refs_by_csreferred[substr_left, substr_length].append([i, l1]) #キー[j(substr_left), l2(substr_length)]にiを格納する
-                            if not (i, l1) in refs_by_csreferrer:
-                                refs_by_csreferrer[i, l1] = []
-                            refs_by_csreferrer[i, l1].append([substr_left, substr_length]) #キー[i,l1]にj(substr_left)を格納する
-                #...[j:j+l1]...[i:i+l1]..., [j:j+l1]==[i:i+l1]
-                elif j + l1 <= i and text[j : j + l1] == text[i : i + l1]:
+    for j in range(0, n):
+        for i in range(j + 1, n):
+            for l1 in range(2, n - i + 1):
+                if j + l1 <= i and text[j : j + l1] == text[i : i + l1]:
+                    # 右側が左側を参照するとき
+                    # print(f"左参照　左側の文字列:{text[j:j+l1]} = 右側の文字列:{text[i:i+l1]}")
                     for substr_left in range(0, j + 1):
-                        for substr_right in range(j + l1, i + 1):
-                            substr_length = substr_right - substr_left
-                            lm.newid(lm.lits.csref, substr_left, substr_length, i, l1) #definition of {ref^c}_{j,l2<-i,l1}
-                            if not (substr_left, substr_length) in refs_by_csreferred:
-                                refs_by_csreferred[substr_left, substr_length] = []
-                            refs_by_csreferred[substr_left, substr_length].append([i, l1]) #キー[j(substr_left), l2(substr_length)]にiを格納する
-                            if not (i, l1) in refs_by_csreferrer:
-                                refs_by_csreferrer[i, l1] = []
-                            refs_by_csreferrer[i, l1].append([substr_left, substr_length]) #キー[i,l1]にj(substr_left)を格納する
+                        for substr_length in range(l1, i - substr_left + 1):
+                            if j + l1 <= substr_left + substr_length <= i:
+                                # print(text[substr_left:substr_left+substr_length])
+                                lm.newid(lm.lits.csref, substr_left, substr_length, i, l1) #definition of {ref^c}_{j,l2<-i,l1}
+                                if not (substr_left, substr_length) in refs_by_csreferred:
+                                    refs_by_csreferred[substr_left, substr_length] = []
+                                refs_by_csreferred[substr_left, substr_length].append([i, l1]) #キー[j(substr_left), l2(substr_length)]にiを格納する
+                                if not (i, l1) in refs_by_csreferrer:
+                                    refs_by_csreferrer[i, l1] = []
+                                refs_by_csreferrer[i, l1].append([substr_left, substr_length]) #キー[i,l1]にj(substr_left)を格納する
+                    # 左側が右側を参照するとき
+                    # print(f"右参照　左側の文字列:{text[j:j+l1]} = 右側の文字列:{text[i:i+l1]}")
+                    for substr_left in range(j + l1, i + 1):
+                        for substr_length in range(l1, n - substr_left + 1):
+                            if i + l1 <= substr_left + substr_length <= n:
+                                # print(text[substr_left:substr_left+substr_length])
+                                lm.newid(lm.lits.csref, substr_left, substr_length, j, l1) #definition of {ref^c}_{j,l2<-i,l1}
+                                if not (substr_left, substr_length) in refs_by_csreferred:
+                                    refs_by_csreferred[substr_left, substr_length] = []
+                                refs_by_csreferred[substr_left, substr_length].append([j, l1]) #キー[j(substr_left), l2(substr_length)]にiを格納する
+                                if not (j, l1) in refs_by_csreferrer:
+                                    refs_by_csreferrer[j, l1] = []
+                                refs_by_csreferrer[j, l1].append([substr_left, substr_length]) #キー[i,l1]にj(substr_left)を格納する
 
-    #print(f"切り取り規則の参照先={refs_by_csreferred}")
-    #print(f"切り取り規則を用いて導出される文字列={refs_by_csreferrer}")
+    # print(f"切り取り規則の参照先={refs_by_csreferred}")
+    # print(f"切り取り規則を用いて導出される文字列={refs_by_csreferrer}")
 
     #qの定義
     refs_by_allreferred = list(set(refs_by_referred.keys())|set(refs_by_rliterated.keys())|set(refs_by_csreferred.keys())|set(refs_by_allrule.keys()))
@@ -355,7 +358,7 @@ def smallest_CollageSystem_WCNF(text: bytes):
     # // start constraint (1)(2) ###############################
     # (1):phrase(i,l) <=> pstart[i] and pstart[i+l] and \neg{pstart[i+1]} and .. and \neg{pstart[i+l-1]}
     for i in range(n):
-        for l in range( 1, n - i + 1):
+        for l in range(1, n - i + 1):
             plst = [-lm.getid(lm.lits.pstart, (i + j)) for j in range(1, l)] + [
                 lm.getid(lm.lits.pstart, i), #p_iの取得
                 lm.getid(lm.lits.pstart, (i + l)), #p_(i+l)の取得
@@ -476,7 +479,7 @@ def smallest_CollageSystem_WCNF(text: bytes):
     # # // end constraint (5) ###############################
 
     # // start constraint (6) ###############################
-    # (6):if (occ,l) is a referred interval, it cannot be a phrase, but pstart[occ] and pstart[occ+l] must be true
+    # (6):区間(i, i+l)が，連結規則に則って区間(j, j+l)を参照しているなら，f_(j, j+l)はファクタではなく，p_j, p_j+lはファクタの開始位置である
     # phrase(occ,l) is only defined if l <= lpf[occ]
     referred = list(refs_by_referred.keys())
     for (j, l) in referred:
@@ -489,7 +492,7 @@ def smallest_CollageSystem_WCNF(text: bytes):
     # // end constraint (6) ###############################
 
     # // start constraint (7) ###############################
-    # (7):区間(j, j + l)が区間(i,j)を繰り返して参照していれば，位置rlreferer[j,l]はフレーズの開始位置となる
+    # (7):区間(i, i + l)が，連長圧縮規則に則って区間(j, i)を参照しているなら，位置rlreferer[j,l]はフレーズの開始位置となる
     for (i, l) in refs_by_rlreferrer.keys():
         for j in refs_by_rlreferrer[i, l]:
             # print(f"rlref(7) = {refs_by_rlreferrer}")
@@ -500,9 +503,12 @@ def smallest_CollageSystem_WCNF(text: bytes):
                     lm.getid(lm.lits.pstart, j)
                 )
             )
-    # // start constraint (7) ###############################
+    # // end constraint (7) ###############################
 
-    
+    # // start constraint () ###############################
+    # ():区間(j, j + l)が，切断規則に則って区間(i, i + l)を参照しているなら，p_j, p_j+lはファクタの開始位置である
+    for ()
+    # // end constraint () ###############################
 
     # // start constraint (8) ###############################
     # (8):q'の定義
