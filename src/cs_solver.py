@@ -40,7 +40,7 @@ class CollageSystemLiteral(Enum):
     auxlit = Literal.auxlit         #auxlit = 3
     phrase = auto()  # (i,l) (representing T[i:i+l)) is phrase of grammar parsing
     pstart = auto()  # i is a starting position of a phrase of grammar parsing
-    ref = auto()  # (j,i,l): phrase (j,j+l) references T[i,i+l)  (T[i,i+l] <- T[j,j+l])
+    slpref = auto()  # (j,i,l): phrase (j,j+l) references T[i,i+l)  (T[i,i+l] <- T[j,j+l])
     rlref = auto() # (j,i,l): phrase (j,j+l) references (T[i,i+l))*(t-1)  ((T[i,i+l])*(t-1) <- T[j,j+l])
     csref = auto() # (j,i,l): phrase (j,j+l) references (T[i,i+l))  ((T[i,i+l]) <- T[j,j+l])
     dref = auto()
@@ -64,12 +64,12 @@ class CollageSystemLiteralManager(LiteralManager):
         self.verifyf = {
             CollageSystemLiteral.phrase: self.verify_phrase,
             CollageSystemLiteral.pstart: self.verify_pstart,
-            CollageSystemLiteral.ref: self.verify_ref,
+            CollageSystemLiteral.slpref: self.verify_slpref,
             CollageSystemLiteral.rlref: self.verify_rlref,
             CollageSystemLiteral.csref: self.verify_csref,
             CollageSystemLiteral.dref: self.verify_dref,
-            CollageSystemLiteral.referred: self.verify_referred,
             CollageSystemLiteral.depth: self.verify_depth,
+            CollageSystemLiteral.referred: self.verify_referred,
         }
         super().__init__(self.lits)
 
@@ -100,12 +100,12 @@ class CollageSystemLiteralManager(LiteralManager):
         assert 0 <= i <= self.n #i \in [1,n+1]
 
     # 変数がref_{i<-j,l}の型であるか確認するメソッド
-    def verify_ref(self, *obj):
+    def verify_slpref(self, *obj):
         # print(f"verify_ref, {obj}")
         # obj = (name, j, i, l) phrase (j,j+l) references T[i,i+l)  (T[i,i+l] <- T[j,j+l])
         assert len(obj) == 4
         name, j, i, l = obj
-        assert name == self.lits.ref
+        assert name == self.lits.slpref
         assert 0 <= i < self.n-1 #i \in [1,n-1]
         assert j < j + l <= i < i + l <= self.n
         assert 1 < l <= self.n
@@ -139,7 +139,7 @@ class CollageSystemLiteralManager(LiteralManager):
     # 変数がdref_{ j,l <- i }の型であるか確認するメソッド
     def verify_dref(self, *obj):
         assert len(obj) == 4
-        name, i, j, l = obj
+        name, j, l, i = obj
         assert name == self.lits.dref
         assert 0 <= i < self.n
         assert 0 <= j < self.n
@@ -150,7 +150,7 @@ class CollageSystemLiteralManager(LiteralManager):
     # 変数がdepth_{i,l,d}の型であるか確認するメソッド
     def verify_depth(self, *obj):
         assert len(obj) == 4
-        name, i, l, d == obj
+        name, i, l, d = obj
         assert name == self.lits.depth
         assert 0 <= i < self.n
         assert 0 < l <= self.n
@@ -248,8 +248,10 @@ def smallest_CollageSystem_WCNF(text: bytes):
 
     #ファクタになり得る変数の作成
     for i in range(0, n):
-        for l in range(1, n + 1):
+        for l in range(1, n - i + 1):
             phrases.append((i, l))
+            for d in range(0, n):
+                lm.newid(lm.lits.depth, i, l, d)
             # lm.newid(lm.lits.phrase, i, l)  # definition of f_{i,l}(type-A)
 
             """"
@@ -257,9 +259,10 @@ def smallest_CollageSystem_WCNF(text: bytes):
             phrases.append((i, rll))
             lm.newid(lm.lits.phrase, i, rll)  # definition of f_{i,l}(type-b)
         """
+
     #refの定義
-    refs_by_referred = {} #(j,l)(参照先の開始位置と区間長)がキー，i(参照元の開始位置)が値
-    refs_by_referrer = {} #(i,l)(参照元の開始位置と区間長)がキー，j(参照先の開始位置)が値
+    refs_by_slpreferred = {} #(j,l)(参照先の開始位置と区間長)がキー，i(参照元の開始位置)が値
+    refs_by_slpreferrer = {} #(i,l)(参照元の開始位置と区間長)がキー，j(参照先の開始位置)が値
 
 
     for j in range(0, n):
@@ -268,17 +271,16 @@ def smallest_CollageSystem_WCNF(text: bytes):
             for l in range(2, n - i + 1):
                 if j + l <= i and text[j : j + l] == text[i : i + l]:
                     #print(f"{text[j:j+l]}, {text[i:i+l]}")
-                    lm.newid(lm.lits.ref, j, i, l)  # definition of ref_{j<-i,l}
-                    #lm.newid(lm.lits.dref, i, j, l) # definition of dref_{i->j,l}
-                    if not (j, l) in refs_by_referred:
-                        refs_by_referred[j, l] = []
-                    refs_by_referred[j, l].append(i) #キー[j,l]にiを格納する
-                    if not (i, l) in refs_by_referrer:
-                        refs_by_referrer[i, l] = []
-                    refs_by_referrer[i, l].append(j) #キー[i,l]にjを格納する
+                    lm.newid(lm.lits.slpref, j, i, l)  # definition of ref_{j<-i,l}
+                    if not (j, l) in refs_by_slpreferred:
+                        refs_by_slpreferred[j, l] = []
+                    refs_by_slpreferred[j, l].append(i) #キー[j,l]にiを格納する
+                    if not (i, l) in refs_by_slpreferrer:
+                        refs_by_slpreferrer[i, l] = []
+                    refs_by_slpreferrer[i, l].append(j) #キー[i,l]にjを格納する
 
-    #print(f"SLPの参照先 = {refs_by_referred}")
-    #print(f"SLPの参照元 = {refs_by_referrer}")
+    #print(f"SLPの参照先 = {refs_by_slpreferred}")
+    #print(f"SLPの参照元 = {refs_by_slpreferrer}")
 
 
     refs_by_allrule = {} # 連長圧縮ルール全体が表す区間の開始位置と区間長（キー），右のノードの開始位置（値）
@@ -317,46 +319,81 @@ def smallest_CollageSystem_WCNF(text: bytes):
             for l1 in range(2, n - i + 1):
                 if j + l1 <= i and text[j : j + l1] == text[i : i + l1]:
                     # 右側が左側を参照するとき
-                    # print(f"左参照　左側の文字列:{text[j:j+l1]} = 右側の文字列:{text[i:i+l1]}")
+                    #print(f"左参照　左側の文字列:{text[j:j+l1]} = 右側の文字列:{text[i:i+l1]}")
                     for substr_left in range(0, j + 1):
                         for substr_length in range(l1, i - substr_left + 1):
                             if j + l1 <= substr_left + substr_length <= i:
-                                # print(text[substr_left:substr_left+substr_length])
-                                lm.newid(lm.lits.csref, substr_left, substr_length, i, l1) #definition of {ref^c}_{j,l2<-i,l1}
+                                # print(text[j:j+l1], "<-", text[substr_left:substr_left+substr_length])
+                                # print(j, j+l1, "<-", substr_left, substr_left+substr_length)
                                 if not (substr_left, substr_length) in refs_by_csreferred:
                                     refs_by_csreferred[substr_left, substr_length] = []
                                 refs_by_csreferred[substr_left, substr_length].append([i, l1]) #キー[j(substr_left), l2(substr_length)]にiを格納する
                                 if not (i, l1) in refs_by_csreferrer:
                                     refs_by_csreferrer[i, l1] = []
                                 refs_by_csreferrer[i, l1].append([substr_left, substr_length]) #キー[i,l1]にj(substr_left)を格納する
+                                if not lm.contains(lm.lits.csref, substr_left, substr_length, i, l1):
+                                    lm.newid(lm.lits.csref, substr_left, substr_length, i, l1) #definition of {ref^c}_{j,l2<-i,l1}
                     # 左側が右側を参照するとき
                     # print(f"右参照　左側の文字列:{text[j:j+l1]} = 右側の文字列:{text[i:i+l1]}")
                     for substr_left in range(j + l1, i + 1):
                         for substr_length in range(l1, n - substr_left + 1):
                             if i + l1 <= substr_left + substr_length <= n:
-                                # print(text[substr_left:substr_left+substr_length])
-                                lm.newid(lm.lits.csref, substr_left, substr_length, j, l1) #definition of {ref^c}_{j,l2<-i,l1}
+                                # print(text[substr_left:substr_left+substr_length], "->",text[j:j+l1])
+                                # print(substr_left, substr_left+substr_length, "->", j, j+l1)
                                 if not (substr_left, substr_length) in refs_by_csreferred:
                                     refs_by_csreferred[substr_left, substr_length] = []
                                 refs_by_csreferred[substr_left, substr_length].append([j, l1]) #キー[j(substr_left), l2(substr_length)]にiを格納する
                                 if not (j, l1) in refs_by_csreferrer:
                                     refs_by_csreferrer[j, l1] = []
-                                refs_by_csreferrer[j, l1].append([substr_left, substr_length]) #キー[i,l1]にj(substr_left)を格納する
-
+                                refs_by_csreferrer[j, l1].append([substr_left, substr_length]) #キー[i,l1]にj(substr_left)を格納する                                    
+                                if not lm.contains(lm.lits.csref, substr_left, substr_length, j, l1):
+                                    lm.newid(lm.lits.csref, substr_left, substr_length, j, l1) #definition of {ref^c}_{j,l2<-i,l1}
+                        #print("reset")
     # print(f"切り取り規則の参照先={refs_by_csreferred}")
     # print(f"切り取り規則を用いて導出される文字列={refs_by_csreferrer}")
 
     #qの定義
-    refs_by_allreferred = list(set(refs_by_referred.keys())|set(refs_by_rliterated.keys())|set(refs_by_csreferred.keys())|set(refs_by_allrule.keys()))
-    for (j, l) in refs_by_allreferred:
+    nt_intervals = list(set(refs_by_slpreferred.keys())|set(refs_by_rliterated.keys())|set(refs_by_csreferred.keys())|set(refs_by_allrule.keys())) # intervals implying nonterminal
+    for (j, l) in nt_intervals:
         lm.newid(lm.lits.referred, j, l)
+    # drefの定義
+    refs_by_allreferred = {}
+    referred_keys = list(set(refs_by_slpreferred.keys())|set(refs_by_rliterated.keys())|set(refs_by_csreferred.keys()))
+    for (j, l) in referred_keys:
+        #print(f"[j, l] = {[j, l]}")
+        #print(set([refs_by_csreferrer[i, l][x][0] for x in range(len(refs_by_csreferrer))]))
+        if refs_by_slpreferred.get((j, l)):
+            for i in refs_by_slpreferred[j, l]:
+                if not (j, l) in refs_by_allreferred:
+                    refs_by_allreferred[j, l] = []
+                refs_by_allreferred[j, l].append(i)
+        if refs_by_rliterated.get((j, l)):
+            if not (j, l) in refs_by_allreferred:
+                    refs_by_allreferred[j, l] = []
+            refs_by_allreferred[j, l].append(j+l)
+        if refs_by_csreferred.get((j, l)):
+            for (i, l2) in refs_by_csreferred[j, l]:
+                if not (j, l) in refs_by_allreferred:
+                    refs_by_allreferred[j, l] = []
+                refs_by_allreferred[j, l].append(i)
+        refs_by_allreferred[j, l] = set(refs_by_allreferred[j, l])
+        for i in refs_by_allreferred[j, l]:
+            lm.newid(lm.lits.dref, j, l, i)
+            #print([j, l], "←",i)
+    #print(refs_by_allreferred.keys())
 
     # refの添え字のリストとref^rの添え字のリストを結合させ重複を除いたリスト(csrefを追加済み)
-    refs_by_allreferrers = list(set(refs_by_referrer.keys())|set(refs_by_rlreferrer.keys())|set(refs_by_csreferrer.keys()))
+    refs_by_allreferrers = list(set(refs_by_slpreferrer.keys())|set(refs_by_rlreferrer.keys())|set(refs_by_csreferrer.keys()))
+
     # print(f"refs_by_allreferrers = {refs_by_allreferrers}")
 
     # // start constraint (1)(2) ###############################
     # (1):phrase(i,l) <=> pstart[i] and pstart[i+l] and \neg{pstart[i+1]} and .. and \neg{pstart[i+l-1]}
+    
+    # 文字列の先頭と末尾は必ずファクタの開始位置である
+    wcnf.append([lm.getid(lm.lits.pstart, 0)])
+    wcnf.append([lm.getid(lm.lits.pstart, n)])
+    
     for i in range(n):
         for l in range(1, n - i + 1):
             plst = [-lm.getid(lm.lits.pstart, (i + j)) for j in range(1, l)] + [
@@ -364,6 +401,7 @@ def smallest_CollageSystem_WCNF(text: bytes):
                 lm.getid(lm.lits.pstart, (i + l)), #p_(i+l)の取得
             ]
             lm.newid(lm.lits.phrase, i, l)
+            #print(lm.getid(lm.lits.phrase, i, l), i, l)
 
         # range_iff_startp:plst全体を表すliteral
         # clauses:条件式(1)の右辺を表す
@@ -386,7 +424,7 @@ def smallest_CollageSystem_WCNF(text: bytes):
         if l > 1:
             if not (j,l) in refs_by_rlreferrer.keys():
                 wcnf.append([-lm.getid(lm.lits.phrase, j, l)])
-            if not (j,l) in refs_by_referrer.keys():
+            if not (j,l) in refs_by_slpreferrer.keys():
                 wcnf.append([-lm.getid(lm.lits.phrase, j, l)])
                     # wcnf.extend(-lm.getid(lm.lits.phrase, j, l))
     """
@@ -426,50 +464,58 @@ def smallest_CollageSystem_WCNF(text: bytes):
 
     # // start constraint (3),(4) ###############################
     # (4):if phrase(j,l) = true there must be exactly one i < j such that ref(j,i,l) is true
-    for (i, l) in refs_by_allreferrers:
-        reflst1 = []
-        reflst2 = []
-        reflst3 = []
-        #print(i,l)
-        if (i,l) in refs_by_referrer.keys():
-            #print(f"nm(i, l) = {refs_by_referrer[i, l], i, l}")
-            reflst1 = [lm.getid(lm.lits.ref, j, i, l) for j in refs_by_referrer[i, l]]
-        if (i,l) in refs_by_rlreferrer.keys():
-            #print(f"rl(i, l) = {refs_by_rlreferrer[i, l], i, l}")
-            reflst2 = [lm.getid(lm.lits.rlref, j, i, l) for j in refs_by_rlreferrer[i, l]]
-        if (i,l) in refs_by_csreferrer.keys():
-            #print(f"cs(i, l1) = {refs_by_csreferrer[i, l1], i, l1}")
-            reflst3 = [lm.getid(lm.lits.csref, j, l2, i, l) for (j,l2) in refs_by_csreferrer[i, l]]
+    for i in range(n):
+        for l in range(1, n - i + 1):
+            reflst1 = []
+            reflst2 = []
+            reflst3 = []
+            #print(i,l)
+            if (i,l) in refs_by_slpreferrer.keys():
+                #print(f"nm(i, l) = {refs_by_slpreferrer[i, l], i, l}")
+                reflst1 = [lm.getid(lm.lits.slpref, j, i, l) for j in refs_by_slpreferrer[i, l]]
+            if (i,l) in refs_by_rlreferrer.keys():
+                #print(f"rl(i, l) = {refs_by_rlreferrer[i, l], i, l}")
+                reflst2 = [lm.getid(lm.lits.rlref, j, i, l) for j in refs_by_rlreferrer[i, l]]
+            if (i,l) in refs_by_csreferrer.keys():
+                # print(f"cs(i, l) = {i, l}")
+                # print(refs_by_csreferrer[i, l])
+                reflst3 = [lm.getid(lm.lits.csref, j, l2, i, l) for (j,l2) in refs_by_csreferrer[i, l]]
+                # reflst3 = []
+                # for (j, l2) in refs_by_csreferrer[i, l]:
+                #     print(i, l, "->", j, l2)
+                #     reflst3 = reflst3 + [lm.getid(lm.lits.csref, j, l2, i, l)]
 
-        reflst = reflst1 + reflst2 + reflst3
+            reflst = reflst1 + reflst2 + reflst3
 
-        # CardEnc.atmost(literalのリスト,閾値 k) -> "literalのリストの論理和 <= k"を表すリスト
-        clauses = CardEnc.atmost(
-            reflst,
-            bound=1,
-            vpool=lm.vpool,
-        )
-        wcnf.extend(clauses)
+            # CardEnc.atmost(literalのリスト,閾値 k) -> "literalのリストの論理和 <= k"を表すリスト
+            clauses = CardEnc.atmost(
+                reflst,
+                bound=1,
+                vpool=lm.vpool,
+            )
+            wcnf.extend(clauses)
 
-        # (3):ref_{・<-j,l}+ref^r{・<-j,l}+ref^c{・<-j,l}に対して,iが少なくとも一つが存在する.
-        clause = pysat_atleast_one(reflst)
+            # (3):ref_{・<-j,l}+ref^r{・<-j,l}+ref^c{・<-j,l}に対して,iが少なくとも一つが存在する.
+            clause = pysat_atleast_one(reflst)
 
-        # var_atleast:条件式(3)の右辺を表すliteral
-        # clause_atleast:条件式(3)の右辺の節を表す
-        var_atleast, clause_atleast = pysat_name_cnf(lm, [clause]) # この関数じゃなくていいかも？
-        wcnf.extend(clause_atleast)
-        phrase = lm.getid(lm.lits.phrase, i, l)
-        wcnf.extend(pysat_iff(phrase, var_atleast))
+            # var_atleast:条件式(3)の右辺を表すliteral
+            # clause_atleast:条件式(3)の右辺の節を表す
+            var_atleast, clause_atleast = pysat_name_cnf(lm, [clause]) # この関数じゃなくていいかも？
+            wcnf.extend(clause_atleast)
+            phrase = lm.getid(lm.lits.phrase, i, l)
+            wcnf.extend(pysat_iff(phrase, var_atleast))
+            if (i, l) == (0, 20):
+                print(reflst)
 
     # // end constraint (3),(4) ###############################
 
     # # // start constraint (5) ###############################
     # # (5):referred(i,l) = true iff there is some j > i such that ref(j,i,l) = true
-    # for (j, l) in refs_by_referred.keys():
+    # for (j, l) in refs_by_slpreferred.keys():
     #     assert l > 1
     #     ref_sources, clauses = pysat_or(
     #         lm.newid,
-    #         [lm.getid(lm.lits.ref, j, i, l) for i in refs_by_referred[j, l]],
+    #         [lm.getid(lm.lits.slpref, j, i, l) for i in refs_by_slpreferred[j, l]],
     #     )
     #     wcnf.extend(clauses)
     #     referredid = lm.getid(lm.lits.referred, i, l)
@@ -477,113 +523,168 @@ def smallest_CollageSystem_WCNF(text: bytes):
     #         pysat_iff(ref_sources, referredid)
     #     )
     # # // end constraint (5) ###############################
-
+    
     # // start constraint (6) ###############################
     # (6):区間(i, i+l)が，連結規則に則って区間(j, j+l)を参照しているなら，f_(j, j+l)はファクタではなく，p_j, p_j+lはファクタの開始位置である
-    # phrase(occ,l) is only defined if l <= lpf[occ]
-    referred = list(refs_by_referred.keys())
-    for (j, l) in referred:
-        if l > 1:
-            qid = lm.getid(lm.lits.referred, j, l)
+    # phrase(occ,l) is only defined if l <= lpf[occ] 
+    for (j, l) in refs_by_slpreferred.keys():
+        for i in refs_by_slpreferred[j, l]:
+            qid = lm.getid(lm.lits.slpref, j, i, l)
             lst = [-qid] + [lm.getid(lm.lits.pstart, j + x) for x in range(1, l)]
             wcnf.append(lst)
             wcnf.append(pysat_if(qid, lm.getid(lm.lits.pstart, j)))
             wcnf.append(pysat_if(qid, lm.getid(lm.lits.pstart, j + l)))
+            wcnf.append(pysat_if(qid, lm.getid(lm.lits.dref, j, l, i)))
     # // end constraint (6) ###############################
 
     # // start constraint (7) ###############################
     # (7):区間(i, i + l)が，連長圧縮規則に則って区間(j, i)を参照しているなら，位置rlreferer[j,l]はフレーズの開始位置となる
-    for (i, l) in refs_by_rlreferrer.keys():
-        for j in refs_by_rlreferrer[i, l]:
+    for (j, l2) in refs_by_rliterated.keys():
+        for l in refs_by_rliterated[j, l2]:
             # print(f"rlref(7) = {refs_by_rlreferrer}")
             # print(f"{text[j:i+l]}")
-            wcnf.append(
-                pysat_if(
-                    lm.getid(lm.lits.rlref, j, i, l),
-                    lm.getid(lm.lits.pstart, j)
-                )
-            )
+            qid = lm.getid(lm.lits.rlref, j, j+l2, l)
+            wcnf.append(pysat_if(qid, lm.getid(lm.lits.pstart, j)))
+            wcnf.append(pysat_if(qid, lm.getid(lm.lits.dref, j, l2, j+l2)))
     # // end constraint (7) ###############################
 
     # // start constraint () ###############################
-    # ():区間(j, j + l)が，切断規則に則って区間(i, i + l)を参照しているなら，p_j, p_j+lはファクタの開始位置である
-    for ()
+    # ():区間(i, i + l1)が，切断規則に則って区間(j, j + l2)を参照しているなら，p_j, p_j+lはファクタの開始位置である
+    for (j, l2) in refs_by_csreferred.keys():
+        for (i, l1) in refs_by_csreferred[j, l2]:
+            qid = lm.getid(lm.lits.csref, j, l2, i, l1)
+            wcnf.append(pysat_if(qid, lm.getid(lm.lits.pstart, j)))
+            wcnf.append(pysat_if(qid, lm.getid(lm.lits.pstart, j + l2)))
     # // end constraint () ###############################
 
     # // start constraint (8) ###############################
-    # (8):q'の定義
-    for (i, l) in refs_by_rliterated:
-        referredlst=[] #q_{i,l}
-        rlreflst1=[] # 連長圧縮ルール全体からなるノードのリスト
-        rlreflst2=[] # 連長圧縮ルールの左のノードのリスト
-        rliteratedlst=[]
+    # (8):qが真なら，qが表す区間を参照先に持つようなslpref, rlref, csref, またはその区間内に左右の子を共に含むrlrefが高々一つ存在する
+    for (j, l) in nt_intervals:
+        slpreferred_lst=[] # 連結規則の参照先のノードのidリスト
+        rliterated_lst=[] # 連長圧縮規則の左の子ノード
+        csreferred_lst=[] # 連結規則の参照先のノード
+        allrule_lst=[] # 連長圧縮規則全体のノード
 
-        if (i, l) in refs_by_referred:
-            referredlst.append(lm.getid(lm.lits.referred, i, l))
+        if (j, l) in refs_by_slpreferred:
+            for i in refs_by_slpreferred[j, l]:
+                #print(f"slpref: ({j},{i},{l})")
+                slpreferred_lst.append(lm.getid(lm.lits.slpref, j, i, l))
 
-        for j in range(n):
-            # 連長圧縮ルール全体
-            # print(f"i,l,j = {i,l,j}")
-            # print(f"allrule = {refs_by_allrule}")
-            if (i,l) in refs_by_allrule.keys() and j in refs_by_allrule[i,l]:
-                # print(f"rlref_all(8) = {i,j,i + l - j}")
-                rlreflst1.append(lm.getid(lm.lits.rlref, j, i, i + l - j))
+        if (j, l) in refs_by_rliterated:
+            for l2 in refs_by_rliterated[j, l]:
+                #print(f"rlref: ({j},{j+l},{j+l+l2})")
+                rliterated_lst.append(lm.getid(lm.lits.rlref, j, j+l, l2))
 
-            # 連長圧縮ルールの左のノード
-            if (i, l) in refs_by_rliterated.keys() and j == i + l:
-                for rll in refs_by_rliterated[i, l]:
-                    # print(f"rlref_left(8) = {i,j,rll}")
-                    rlreflst2.append(lm.getid(lm.lits.rlref, j, i, rll))
+        if (j, l) in refs_by_csreferred:
+            for (i, l2) in refs_by_csreferred[j, l]:
+                #print(f"csref: ({j},{l},{i},{l2})")
+                csreferred_lst.append(lm.getid(lm.lits.csref, j, l, i, l2))
+        
+        if (j, l) in refs_by_allrule:
+            for i in refs_by_allrule[j, l]:
+                allrule_lst.append(lm.getid(lm.lits.rlref, j, i, l - i + j))
+            
 
-        rliteratedlst.extend(referredlst + rlreflst1 + rlreflst2)
-
-        clause = pysat_atleast_one(rliteratedlst)
+        referred_lst = []
+        referred_lst.extend(slpreferred_lst + rliterated_lst + csreferred_lst + allrule_lst)
+        #print(referred_lst)
+        clause = pysat_atleast_one(referred_lst)
         var_refatleast, clause_refatleast = pysat_name_cnf(lm, [clause])
         wcnf.extend(clause_refatleast)
-        rliteratedid = lm.getid(lm.lits.rliterated, i, l)
-        wcnf.extend(pysat_iff(rliteratedid, var_refatleast))
+        referredid = lm.getid(lm.lits.referred, j, l)
+        wcnf.extend(pysat_iff(referredid, var_refatleast))
     # // end constraint (8) #################################
 
     # // start constraint (9), (10) ###############################
     # (9):crossing intervals cannot be referred to at the same time.
     #rliterated = list(refs_by_rliterated)
-    rliterated_by_bp = [[] for _ in range(n)] # occ * n サイズのリストを作成
-    for (occ, l) in refs_by_rliterated:
-        rliterated_by_bp[occ].append(l)
-    for lst in rliterated_by_bp:
+    sorted_ntIntervals = [[] for _ in range(n)] # occ * n サイズのリストを作成
+    for (occ, l) in nt_intervals:
+        sorted_ntIntervals[occ].append(l)
+    for lst in sorted_ntIntervals:
         lst.sort(reverse=True)
+    # print(nt_intervals)
+    # print(sorted_ntIntervals)
 
-    for (occ1, l1) in refs_by_rliterated:
+    for (occ1, l1) in nt_intervals:
         for occ2 in range(occ1 + 1, occ1 + l1):
-            for l2 in rliterated_by_bp[occ2]:
+            for l2 in sorted_ntIntervals[occ2]:
                 if l2 == 1:
                     pass
                 else:
-                    # print(f"l1,l2,occ1,occ2 = {l1,l2,occ1,occ2}")
+                    #print(f"l1,l2,occ1,occ2 = {l1,l2,occ1,occ2}")
+                    #print(occ1, occ2, occ1+l1, occ2+l2)
                     assert l1 > 1 and l2 > 1
                     assert occ1 < occ2 and occ2 < occ1 + l1
                     if occ1 + l1 >= occ2 + l2:
+                        #print("ok")
                         break
-                    id1 = lm.getid(lm.lits.rliterated, occ1, l1)
-                    id2 = lm.getid(lm.lits.rliterated, occ2, l2)
+                    #print("not ok")
+                    id1 = lm.getid(lm.lits.referred, occ1, l1)
+                    id2 = lm.getid(lm.lits.referred, occ2, l2)
                     wcnf.append([-id1, -id2])
-    # (10):csreferrerの区間とq'の区間が重ならない時，csreferredの区間とq'が一部のみ重複する
-    for (occ1_i, l1) in refs_by_csreferred.keys():   #csreferred {occ1_j <- occ1_i, l1}
-        jlst = refs_by_csreferred[occ1_i, l1]
-        for occ1_j in jlst:
-            for (occ2, l2) in refs_by_rliterated:        #rliterated occ2, l2
-                if l2 == 1:
-                    pass
-                else:
-                    assert l1 > 1 and l2 > 1
-                    if occ2 < occ1_j < occ2 + l2 < occ1_j + l1 or occ1_j < occ2 < occ1_j + l1 < occ2 + l2:
-                        if occ2 <= occ1_i < occ1_i + l1 <= occ2 + l2:
-                            id1 = lm.getid(lm.lits.csref, occ1_j, occ1_i, l1)
-                            id2 = lm.getid(lm.lits.rliterated, occ2, l2)
-                            wcnf.append([-id1,-id2])
 
-    # // end constraint (9), (10) ###############################
+    # // start constraint (11) ##############################
+    # depth_{i,l,d}=1ならば，depth_{i,l,d-1}である
+    for i in range(0,n):
+        for l in range(1, n - i + 1):
+            for d in range(1,n):
+                wcnf.append(pysat_if(lm.getid(lm.lits.depth, i, l, d), lm.getid(lm.lits.depth, i, l, d-1)))
+    # // end constraint (11) ###############################
 
+    # // start constraint (11) ##############################
+    #ともに同一のファクタ内に含まれるi-1, i番目の文字の深さは等しい
+    for i in range(0,n-1):
+        for d in range(0,n):
+            id1 = lm.getid(lm.lits.pstart, i+1)
+            id2 = lm.getid(lm.lits.depth, i, 1, d)
+            id3 = lm.getid(lm.lits.depth, i+1, 1, d)
+            # 1->23+(-2)(-3)
+            # =(-1)+23+(-2)(-3)
+            # =(-1)+(23+(-2))(23+(-3))
+            # =(-1)+((2+(-2))(3+(-2)))((2+(-3))(3+(-3)))
+            # =(-1)+(1(3+(-2)))((2+(-3))1)
+            # =(-1)+(3+(-2))(2+(-3))
+            # =((-1)+((-2)+3))((-1)+(2+(-3)))
+            # =((-1)+(-2)+3)((-1)+2+(-3))
+#            wcnf.append([-id1, -id2, id3])
+#            wcnf.append([-id1, id2, -id3])
+
+
+    # // end constraint (11) ###############################
+
+    # // start constraint (11) ##############################
+    #文字列の深さは，その文字列に含まれる文字の深さの最大値に等しい
+    for i in range(0,n):
+        for l in range(1, n - i + 1):
+            for d in range(0,n):
+                id1 = lm.getid(lm.lits.depth, i, l, d)
+                list1 = []
+                for k in range(i, i + l):
+                    list1 = list1 + [lm.getid(lm.lits.depth, k, 1, d)]
+#                wcnf.append([-id1] + list1)
+#                wcnf.append([-id for id in list1] + [id1])
+
+    # // end constraint (11) ###############################
+
+    # // start constraint (11) ##############################
+    #参照元の深さは参照先の深さより大きい
+    for (j, l) in refs_by_allreferred.keys():
+        for i in refs_by_allreferred[j, l]:
+            id1 = lm.getid(lm.lits.dref, j, l, i)
+            for d in range(0,n):
+                id2 = lm.getid(lm.lits.depth, i, 1, d)
+                id3 = lm.getid(lm.lits.depth, j, l, d)
+                # 1->((-2)->(-3))
+                # =1->(2+(-3))
+                # =(-1)+(2+(-3))
+                # =(-1)+2+(-3)
+#                wcnf.append([-id1, id2, -id3])
+
+    # // end constraint (11) ############################### 
+
+
+    '''
     # // start constraint (11) ##############################
     # 最初に出現した文字をファクタの開始位置とする
     for i in range(0, n):
@@ -595,12 +696,16 @@ def smallest_CollageSystem_WCNF(text: bytes):
     wcnf.append([lm.getid(lm.lits.pstart, 0)])
     wcnf.append([lm.getid(lm.lits.pstart, n)])
     # // end constraint (11) ###############################
+    '''
 
     # soft clauses: minimize # of phrases
     # soft clauseの作成
     for i in range(0, n):
         wcnf.append([-lm.getid(lm.lits.pstart, i)], weight=1)
-    return lm, wcnf, phrases, refs_by_referrer, refs_by_rlreferrer, refs_by_csreferrer
+    for (j, l2) in refs_by_csreferred:
+        for (i, l1) in refs_by_csreferred[j, l2]:
+            wcnf.append([-lm.getid(lm.lits.csref, j, l2, i, l1)], weight=1)
+    return lm, wcnf, phrases, refs_by_slpreferrer, refs_by_rlreferrer, refs_by_csreferrer
 
 # リストxとリストyの比較関数
 # 1を返す → そのまま，0を返す → 順番を変える
@@ -628,7 +733,7 @@ def postorder_cmp(x, y):
 # find the direct children of [root_i,root_j) and add it to slp
 # slp[j,l,i] is a list of nodes that are direct children of [i,j)
 #
-def build_rlslp_aux(nodes, rlslp):
+def build_cs_aux(nodes, cs):
     root = nodes.pop()
     root_i = root[0]
     # root_j = root[1]
@@ -637,18 +742,18 @@ def build_rlslp_aux(nodes, rlslp):
     children = []
     while len(nodes) > 0 and nodes[-1][0] >= root_i:
         # print(f"nodes[-1] = {nodes[-1]}")
-        c = build_rlslp_aux(nodes, rlslp)
+        c = build_cs_aux(nodes, cs)
         children.append(c)
     children.reverse() # 逆順に並び替える
-    rlslp[root] = children
-    # print(f"rlslp[root] = {rlslp[root]}")
+    cs[root] = children
+    # print(f"cs[root] = {cs[root]}")
     ##########################################################
     return root
 
 # turn multi-ary tree into binary tree
 # 与えられた生成規則を基に復元する順番を決定する関数
-def binarize_rlslp(root, rlslp):
-    children = rlslp[root]
+def binarize_cs(root, cs):
+    children = cs[root]
     # print(f"children = {children}")
     # 根ノードが連長圧縮の生成規則で表される
     numc = len(children)
@@ -660,28 +765,28 @@ def binarize_rlslp(root, rlslp):
     if numc == 2:
         if children[1][2] == "RLrule":
             # children[1][2] = "RLrule" + str((children[1][1] - children[1][0]) / (children[0][1] - children[0][0])) + "times"
-            rlslp[root] = (binarize_rlslp(children[0], rlslp), binarize_rlslp(children[1], rlslp))
+            cs[root] = (binarize_cs(children[0], cs), binarize_cs(children[1], cs))
         else:
-            rlslp[root] = (binarize_rlslp(children[0], rlslp), binarize_rlslp(children[1], rlslp))
+            cs[root] = (binarize_cs(children[0], cs), binarize_cs(children[1], cs))
 
     elif numc > 0:
         leftc = children[0]
         for i in range(1, len(children)):
             n = (root[0], children[i][1], None) if i < len(children) - 1 else root
-            rlslp[n] = (leftc, children[i])
+            cs[n] = (leftc, children[i])
             leftc = n
         for c in children:
-            binarize_rlslp(c, rlslp)
+            binarize_cs(c, cs)
 
     elif numc == 1 and "RLrule" == children[0][2]:
-        binarize_rlslp(children[0], rlslp)
+        binarize_cs(children[0], cs)
 
     else:
-        rlslp[root] = None
+        cs[root] = None
     return root
 
-# RLSLPの生成規則から文字列を復元する関数
-def cs2str(root, rlslp):
+# csの生成規則から文字列を復元する関数
+def cs2str(root, cs):
     # print(f"root={root}")
     res = []
     (i, j, ref) = root
@@ -689,41 +794,40 @@ def cs2str(root, rlslp):
     if j - i == 1:
         res.append(ref)
     else:
-        children = rlslp[root]
+        children = cs[root]
         # print(f"root = {root}")
         # print(f"children = {children}")
         if ref is None: # SLPの生成規則を表す内部ノードの場合
             assert len(children) == 2 or (len(children) == 1 and children[0][2] == "RLrule")
             if children[0][2]  == "RLrule" and len(children) == 1:
-                res += cs2str(children[0], rlslp)
+                res += cs2str(children[0], cs)
             else:
-                res += cs2str(children[0], rlslp)
-                res += cs2str(children[1], rlslp)
+                res += cs2str(children[0], cs)
+                res += cs2str(children[1], cs)
         elif str(ref).startswith("RLrule") == True: # 連帳圧縮ルールの繰り返しを表した葉ノードの場合
             assert len(children) == 2
             # print(f"children_RLrule = {children}")
             for j in range(int((children[1][1] - children[0][0]) / (children[0][1] - children[0][0]))):
-                res += cs2str(children[0], rlslp)
+                res += cs2str(children[0], cs)
 
         else: # 葉ノードの場合
             # print(f"root = {root}")
             # print(f"children_leaves = {children}")
             assert children is None
             # 参照しているノードが連長圧縮全体のノード，SLPルールのノード，文字で場合分けしたい
-            if (ref, ref + j - i, None) in rlslp:
+            if (ref, ref + j - i, None) in cs:
                 n = (ref, ref + j - i, None)
             else:
                 n = (ref, ref + j - i, "RLrule")
 
-            res += cs2str(n, rlslp)
+            res += cs2str(n, cs)
     return res
 
 # SLPの解析木の情報を保存
-def recover_rlslp(text: bytes, pstartl, refs_by_referrer, refs_by_rlreferrer, refs_by_csreferrer):
+def recover_cs(text: bytes, pstartl, refs_by_slpreferrer, refs_by_rlreferrer, refs_by_csreferrer):
     n = len(text)
     # 各区間に対応するノードの種類を分類
-    referred = set((refs_by_referrer[j, l], l) for (j, l) in refs_by_referrer.keys()) # 参照元の位置と長さを保持するタプルを生成
-
+    slpreferred = set((refs_by_slpreferrer[j, l], l) for (j, l) in refs_by_slpreferrer.keys()) # 参照元の位置と長さを保持するタプルを生成
     if len(refs_by_rlreferrer) > 0:
         rliterated = set((refs_by_rlreferrer[j, l], j, l) for (j, l) in refs_by_rlreferrer.keys())
     else:
@@ -731,32 +835,32 @@ def recover_rlslp(text: bytes, pstartl, refs_by_referrer, refs_by_rlreferrer, re
 
     # 切り取り規則を用いているかどうか
     if len(refs_by_csreferrer) > 0:
-        # csreferredに(i, j, l)のペアを入れていく
-        csreferred = set((refs_by_csreferrer[j, l], j, l) for (j, l) in refs_by_csreferrer.keys())
-        # print(csreferred)
+        # csreferredに(j, l2, i, l1)のペアを入れていく
+        csreferred = set((refs_by_csreferrer[i, l1][0], refs_by_csreferrer[i, l1][1], i, l1) for (i, l1) in refs_by_csreferrer.keys())
     else:
         csreferred = set()
 
     # ノードが内部ノードかつ蓮長圧縮ルール全体のノードとみなされていた場合，連長圧縮ルール全体のノードとして扱う
     # 繰り返しを表す区間が左に出現していた時発生する
     # 切り取り規則においては，leavesにreferrerを入れるのみ
-    leaves = [(j, j + l, refs_by_referrer[j, l]) for (j, l) in refs_by_referrer.keys()] + [(j, j + l, refs_by_rlreferrer[j, l]) for (j, l) in refs_by_rlreferrer.keys()] + [(j, j + l, refs_by_csreferrer[j, l]) for (j, l) in refs_by_csreferrer.keys()]# 葉ノードが表す区間
+    leaves = [(j, j + l, refs_by_slpreferrer[j, l]) for (j, l) in refs_by_slpreferrer.keys()] + [(j, j + l, refs_by_rlreferrer[j, l]) for (j, l) in refs_by_rlreferrer.keys()] + [(j, j + l, refs_by_csreferrer[j, l]) for (j, l) in refs_by_csreferrer.keys()]# 葉ノードが表す区間
     for i in range(len(pstartl) - 1):
         if pstartl[i + 1] - pstartl[i] == 1: # pstartl[i]が長さ1のファクタの開始位置の場合
             leaves.append((pstartl[i], pstartl[i + 1], text[pstartl[i]]))
 
-    internal = [(occ, occ + l, None) for (occ, l) in referred] # 内部ノードが表す区間(SLP)
-    rlinternal = [(occ, j + l , "RLrule") for (occ, j, l) in rliterated] # 連長圧縮全体を表す内部ノードの区間(RLSLP)
+    internal = [(occ, occ + l, None) for (occ, l) in slpreferred] # 内部ノードが表す区間(SLP)
+    rlinternal = [(occ, j + l , "RLrule") for (occ, j, l) in rliterated] # 連長圧縮全体を表す内部ノードの区間(cs)
             # leaves = [(occ, j + l - i, None)]
             # print(f"occ, j, l = {occ, j, l}")
-    for (i, l) in referred:
+    for (i, l) in slpreferred:
         for (j, rl) in refs_by_rlreferrer.keys():
             if i == refs_by_rlreferrer[j, rl] and i + l == j + rl:
                 # print(f"i, l, j, rl={i,l,j,rl}")
                 internal.remove((i, i + l, None))
 
-    print(f"referred = {referred}")
+    print(f"slpreferred = {slpreferred}")
     print(f"rliterated = {rliterated}")
+    print(f"csreferred = {csreferred}")
     print(f"internal = {internal}")
     print(f"rlinternal = {rlinternal}")
     print(f"leaves = {leaves}")
@@ -765,10 +869,10 @@ def recover_rlslp(text: bytes, pstartl, refs_by_referrer, refs_by_rlreferrer, re
         nodes.append((0, n, None)) # 根ノードを表す区間を追加
     # print(f"nodes={nodes}")
     nodes.sort(key=functools.cmp_to_key(postorder_cmp)) # postorder_cmpの規則に従い，ソートする
-    rlslp = {}
-    root = build_rlslp_aux(nodes, rlslp)
-    binarize_rlslp(root, rlslp)
-    return (root, rlslp)
+    cs = {}
+    root = build_cs_aux(nodes, cs)
+    binarize_cs(root, cs)
+    return (root, cs)
 
 # 最小のSLPを計算,SLP分解したときの解析木を返す関数
 def smallest_CollageSystem(text: bytes, exp: Optional[SLPExp] = None) -> SLPType:
@@ -776,12 +880,18 @@ def smallest_CollageSystem(text: bytes, exp: Optional[SLPExp] = None) -> SLPType
     Compute the smallest SLP.
     """
     total_start = time.time()
-    lm, wcnf, phrases, refs_by_referrer, refs_by_rlreferrer, refs_by_csreferrer = smallest_CollageSystem_WCNF(text) # 条件式を生成
+    lm, wcnf, phrases, refs_by_slpreferrer, refs_by_rlreferrer, refs_by_csreferrer = smallest_CollageSystem_WCNF(text) # 条件式を生成
     rc2 = RC2(wcnf) # MAX-SATを計算
     time_prep = time.time() - total_start  # 前処理時間
     sol_ = rc2.compute()    # MAX-SATの解を保持したint型のリストを返す．
     assert sol_ is not None
     sol = set(sol_)
+    
+    for x in sol:
+        if x > 0:
+            print(lm.id2str(x))
+
+
 
     n = len(text)
 
@@ -797,43 +907,43 @@ def smallest_CollageSystem(text: bytes, exp: Optional[SLPExp] = None) -> SLPType
         if x in sol:
             phrasel.append((occ, occ + l))
     # print(f"phrasel={phrasel}")
-    refs = {}
-    for (j, l) in refs_by_referrer.keys():
-        for i in refs_by_referrer[j, l]:
-            if lm.getid(lm.lits.ref, j, i, l) in sol:
-                refs[j, l] = i
-    # print(f"refs={refs}")
+    slprefs = {}
+    for (i, l) in refs_by_slpreferrer.keys():
+        for j in refs_by_slpreferrer[i, l]:
+            if lm.getid(lm.lits.slpref, j, i, l) in sol:
+                slprefs[j, l] = i
+    # print(f"slprefs={slprefs}")
     # 連長圧縮ルールの参照先と参照元のデータを保存
     rlrefs = {}
-    for (j, l) in refs_by_rlreferrer.keys():
-        for i in refs_by_rlreferrer[j, l]:
+    for (i, l) in refs_by_rlreferrer.keys():
+        for j in refs_by_rlreferrer[i, l]:
             if lm.getid(lm.lits.rlref, j, i, l) in sol:
                 rlrefs[j, l] = i
     # print(f"rlrefs={rlrefs}")
     csrefs = {}
-    for (j, l) in refs_by_csreferrer.keys():
-        for i in refs_by_csreferrer[j, l]:
-            if lm.getid(lm.lits.csref, j, i, l) in sol:
-                csrefs[j, l] = i
+    for (i, l1) in refs_by_csreferrer.keys():
+        for (j, l2) in refs_by_csreferrer[i, l1]:
+            if lm.getid(lm.lits.csref, j, l2, i, l1) in sol:
+                csrefs[j, l2] = (i, l1)
     # print(f"csrefs = {csrefs}")
-    # MAX-SATの解からRLSLPを生成
-    root, rlslp = recover_rlslp(text, posl, refs, rlrefs, csrefs)
-    # print(f"root={root}, rlslp = {rlslp}, rlslpkeys={rlslp.keys()}")
+    # MAX-SATの解からcsを生成
+    root, cs = recover_cs(text, posl, slprefs, rlrefs, csrefs)
+    # print(f"root={root}, cs = {cs}, cskeys={cs.keys()}")
 
-    rlslpsize = len(posl) - 2 + len(set(text))
+    cssize = len(posl) - 2 + len(set(text))
 
     if exp:
         exp.time_total = time.time() - total_start
         exp.time_prep = time_prep
-        exp.factors = f"{(root, rlslp)}"
-        exp.factor_size = rlslpsize  # len(internal_nodes) + len(set(text))
+        exp.factors = f"{(root, cs)}"
+        exp.factor_size = cssize  # len(internal_nodes) + len(set(text))
         exp.fill(wcnf)
 
-    check = bytes(cs2str(root, rlslp))
+    check = bytes(cs2str(root, cs))
 
     assert check == text
 
-    return SLPType((root, rlslp))
+    return SLPType((root, cs))
 
 
 def parse_args():
@@ -877,7 +987,7 @@ if __name__ == "__main__":
         logger.setLevel(CRITICAL)
 
     exp = SLPExp.create() # 出力したいフォーマットの作成
-    exp.algo = "rlslp-sat"
+    exp.algo = "cs-sat"
     exp.file_name = os.path.basename(args.file)
     exp.file_len = len(text)
 
