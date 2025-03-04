@@ -558,10 +558,10 @@ def smallest_CollageSystem_WCNF(text: bytes):
             wcnf.append(pysat_if(qid, lm.getid(lm.lits.pstart, j)))
             wcnf.append(pysat_if(qid, lm.getid(lm.lits.pstart, j + l2)))
             wcnf.append(pysat_if(qid, lm.getid(lm.lits.dref, j, l2, i)))
-            # # 追加：切断規則は，連長圧縮規則によるファクタのみを参照することはできない
-            # if (i, l1) in refs_by_rlreferrer.keys():
-            #     for j2 in refs_by_rlreferrer[i, l1]:
-            #         wcnf.append([qid, -lm.getid(lm.lits.rlref, j2, i, l1)])
+            # 追加：切断規則は，連長圧縮規則によるファクタのみを参照することはできない
+            if (i, l1) in refs_by_rlreferrer.keys():
+                for j2 in refs_by_rlreferrer[i, l1]:
+                    wcnf.append([qid, -lm.getid(lm.lits.rlref, j2, i, l1)])
                 
 
     # // end constraint () ###############################
@@ -674,7 +674,9 @@ def smallest_CollageSystem_WCNF(text: bytes):
         for l in range(1, n - i + 1):
             for d in range(0,n):
                 id1 = lm.getid(lm.lits.depth, i, l, d)
-                list1 = [lm.getid(lm.lits.depth, k, 1, d) for k in range(i, i + l)]
+                list1 = []
+                for k in range(i, i + l):
+                    list1 = list1 + [lm.getid(lm.lits.depth, k, 1, d)]
                 # (1->(2+3))((2+3)->1)
                 # =(-1+(2+3))((-2)(-3)+1)
                 # =(-1+2+3)(-2+1)(-3+1)
@@ -683,7 +685,7 @@ def smallest_CollageSystem_WCNF(text: bytes):
                 #     wcnf.append([id1, -id])
                 nvar, nclauses = pysat_or(lm.newid, list1)
                 wcnf.extend(nclauses)
-                wcnf.extend(pysat_iff(id1, nvar))
+                #wcnf.extend(pysat_iff(id1, nvar))
 
     # // end constraint (11) ###############################
 
@@ -857,7 +859,7 @@ def recover_cs(text: bytes, pstartl, refs_by_slpreferrer, refs_by_rlreferrer, re
     
     rliterated = set((refs_by_rlreferrer[i, l], i, l) for (i, l) in refs_by_rlreferrer.keys())
 
-    csreferred = set((refs_by_csreferrer[i, l][0], refs_by_csreferrer[i, l][1]) for (i, l) in refs_by_csreferrer.keys()) # 参照元の位置と長さ
+    csreferred = set(refs_by_csreferrer[i, l] for (i, l) in refs_by_csreferrer.keys())
 
     # ノードが内部ノードかつ蓮長圧縮ルール全体のノードとみなされていた場合，連長圧縮ルール全体のノードとして扱う
     # 繰り返しを表す区間が左に出現していた時発生する
@@ -873,12 +875,12 @@ def recover_cs(text: bytes, pstartl, refs_by_slpreferrer, refs_by_rlreferrer, re
 
     internal = [(occ, occ + l, None) for (occ, l) in slpreferred] # 内部ノードが表す区間(SLP)
     rlinternal = [(occ, i + l , "RLrule") for (occ, i, l) in rliterated] # 連長圧縮全体を表す内部ノードの区間(RLSLP)
-    csinternal = [(occ, occ + l2, None) for (occ, l2) in csreferred] # 切り取り規則を表す内部ノードの区間(CS)
+    csinternal = [(occ, occ + l2, None) for (occ, l2, startp) in csreferred] # 切り取り規則を表す内部ノードの区間(CS)
             # leaves = [(occ, j + l - i, None)]
             # print(f"occ, j, l = {occ, j, l}")
     for (j, l) in slpreferred:
-        for (ri, rl) in refs_by_rlreferrer.keys():
-            if j == refs_by_rlreferrer[ri, rl] and j + l == ri + rl:
+        for (i, rl) in refs_by_rlreferrer.keys():
+            if j == refs_by_rlreferrer[i, rl] and j + l == i + rl:
                 # print(f"i, l, j, rl={i,l,j,rl}")
                 internal.remove((j, j + l, None))
 

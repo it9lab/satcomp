@@ -881,6 +881,15 @@ def recover_cs(text: bytes, pstartl, refs_by_slpreferrer, refs_by_rlreferrer, re
             if j == refs_by_rlreferrer[ri, rl] and j + l == ri + rl:
                 # print(f"i, l, j, rl={i,l,j,rl}")
                 internal.remove((j, j + l, None))
+    
+    # 葉ノードかつ内部ノードでもあるノードを削除（内部ノードの方を削除する，参照されるためにはファクタであることだけで十分なはず）
+    allinternal = internal + rlinternal + csinternal
+    for (i_s, i_e, n_type) in allinternal:
+        for (l_s, l_e, ref) in leaves:
+            if i_s == l_s and i_e == l_e:
+                internal.remove((i_s, i_e, None))
+    
+
 
     # print(f"slpreferred = {slpreferred}")
     # print(f"rliterated = {rliterated}")

@@ -74,7 +74,7 @@ def main():
                     if c[1] - c[0] == 1 or c[2] == 'RLrule' or c[2] == None:
                         dot_str += f'  "{parent}" -> "{c}";\n'
                     elif parent[2] == 'RLrule' and parent[0] == c[2]:
-                        dot_str += f'  "{parent}" -> "{c}" [label="RestRL"];\n'
+                        dot_str += f'  "{parent}" -> "{c}" [label="Run"];\n'
                     else:
                         dot_str += f'  "{parent}" -> "{c}" [label="SLP{c[2],c[2]+c[1]-c[0]}"];\n'
 
