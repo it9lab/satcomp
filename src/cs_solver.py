@@ -919,7 +919,7 @@ def smallest_CollageSystem(text: bytes, exp: Optional[SLPExp] = None) -> SLPType
     lm, wcnf, phrases, refs_by_slpreferrer, refs_by_rlreferrer, refs_by_csreferrer = smallest_CollageSystem_WCNF(text) # 条件式を生成
     rc2 = RC2(wcnf) # MAX-SATを計算
     time_prep = time.time() - total_start  # 前処理時間
-    # print("preparation complete\n")
+    #print("preparation complete\n")
     sol_ = rc2.compute()    # MAX-SATの解を保持したint型のリストを返す．
     assert sol_ is not None
     sol = set(sol_)

@@ -4,3 +4,11 @@ out/*
 .vscode
 __pycache__/
 .tox/
+
+activate
+.venv
+.history
+dot
+img
+log
+satcomp
