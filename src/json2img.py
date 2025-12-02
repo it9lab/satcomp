@@ -29,6 +29,8 @@ if __name__ == "__main__":
     rank_nodes = []  # Collect nodes with their starting index for ordering
     num_csref = 0
 
+    dot_str += "  graph [splines=line];\n"  # Use polyline edges for clarity
+
     # Process parent nodes in the order of their appearance in the text
     for parent, children in sorted(factors.items(), key=lambda x: x[0][0]):
         if children is None:
@@ -66,6 +68,5 @@ if __name__ == "__main__":
         f.write(dot_str)
 
     # DOTファイルをPNGファイルに変換
-    import os
-    os.system('dot -Tpng dot/'+solver_type+'_json.dot -o img/'+solver_type+'.png')
+    subprocess.run(["dot", "-Tpng", "dot/"+solver_type+"_json.dot", "-o", "img/"+solver_type+".png"])
     # os.system('dot -Tpng result.dot -o result/' + text + '.png')

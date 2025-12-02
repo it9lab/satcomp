@@ -359,7 +359,7 @@ def smallest_CollageSystem_WCNF(text: bytes):
     for (j, l) in nt_intervals:
         lm.newid(lm.lits.referred, j, l)
     # drefの定義
-    refs_by_allreferred = {} #参照先の開始位置j,参照先の長さlの組(j, l)がキー，参照元の開始位置iが値
+    refs_by_allreferred = {}
     referred_keys = list(set(refs_by_slpreferred.keys())|set(refs_by_rliterated.keys())|set(refs_by_csreferred.keys()))
     for (j, l) in referred_keys:
         #print(f"[j, l] = {[j, l]}")
@@ -415,7 +415,7 @@ def smallest_CollageSystem_WCNF(text: bytes):
             wcnf.extend(pysat_iff(lm.getid(lm.lits.phrase, i, l), range_iff_startp))
         # pysat_iff(x,y)->リスト[[-x,y], [x, -y]]を返す．(x<=>yを表現する関数)
 
-     # (2): 二文字以上で，かつ参照先が存在しない区間はファクタにならない
+     # (2):there must be at least one new phrase beginning from [i+1,...,i+max(1,lpf[i] or rllpf[i])]
     for i in range(n):
         for l in range(2, n - i + 1):
             if not (i,l) in phrases:
@@ -467,7 +467,7 @@ def smallest_CollageSystem_WCNF(text: bytes):
     """
     # // end constraint (1)(2) ###############################
 
-    # // start constraint (3),(4)###############################
+    # // start constraint (3),(4) ###############################
     # (4):if phrase(j,l) = true there must be exactly one i < j such that ref(j,i,l) is true
     for (i, l) in refs_by_allreferrers:
         reflst1 = []
@@ -509,79 +509,101 @@ def smallest_CollageSystem_WCNF(text: bytes):
         phrase = lm.getid(lm.lits.phrase, i, l)
         wcnf.extend(pysat_iff(phrase, var_atleast))
 
-    # // end constraint (3),(4)###############################
+    # // end constraint (3),(4) ###############################
 
-    # // start constraint (5) ###############################
-    # (5): dref_{j,l<-i}を満たすような{j,l,i}の組が存在するとき，文字列区間(j,j+l)はいずれかのファクタの参照先である．逆もまた然り.
-
-    for (j, l) in refs_by_allreferred.keys():
-        for i in refs_by_allreferred[j, l]:
-            # 参照先の区間と参照元の開始位置が確定している
-
-            slpreferred_lst=[] # 連結規則の参照先のノードのidリスト
-            rliterated_lst=[] # 連長圧縮規則の左の子ノード
-            csreferred_lst=[] # 切断規則の参照先のノード
-
-            # slprefはひとつだけ
-            if (j,l) in refs_by_slpreferred.keys() and i in refs_by_slpreferred[j, l]:
-                slpreferred_lst.append(lm.getid(lm.lits.slpref, j, i, l))
-
-            # rlrefは参照元の長さの倍数分だけ存在しうる(rliteratedに格納済み)
-            if (j,l) in refs_by_rliterated.keys():
-                for l2 in refs_by_rliterated[j, l]:
-                    #print(f"rlref: ({j},{j+l},{j+l+l2})")
-                    rliterated_lst.append(lm.getid(lm.lits.rlref, j, j+l, l2))
-
-            # csrefは参照元の長さ分だけ存在しうる
-            if (j, l) in refs_by_csreferred.keys():
-                for (i, l2) in refs_by_csreferred[j, l]:
-                    #print(f"csref: ({j},{l},{i},{l2})")
-                    csreferred_lst.append(lm.getid(lm.lits.csref, j, l, i, l2))
-
-            referred_lst = []
-            referred_lst.extend(slpreferred_lst + rliterated_lst + csreferred_lst)
-            # print(referred_lst)
-            for i in refs_by_allreferred[j, l]:
-                drefid = lm.getid(lm.lits.dref, j, l, i)
-                clause = pysat_atleast_one(referred_lst)
-                var_refatleast, clause_refatleast = pysat_name_cnf(lm, [clause])
-                wcnf.extend(clause_refatleast)
-                wcnf.extend(pysat_iff(drefid, var_refatleast))
-
-    # // end constraint (5) ###############################
-
+    # # // start constraint (5) ###############################
+    # # (5):referred(i,l) = true iff there is some j > i such that ref(j,i,l) = true
+    # for (j, l) in refs_by_slpreferred.keys():
+    #     assert l > 1
+    #     ref_sources, clauses = pysat_or(
+    #         lm.newid,
+    #         [lm.getid(lm.lits.slpref, j, i, l) for i in refs_by_slpreferred[j, l]],
+    #     )
+    #     wcnf.extend(clauses)
+    #     referredid = lm.getid(lm.lits.referred, i, l)
+    #     wcnf.extend(
+    #         pysat_iff(ref_sources, referredid)
+    #     )
+    # # // end constraint (5) ###############################
+    
     # // start constraint (6) ###############################
-    # (6):qが真なら，qが表す区間を参照先に持つようなdref，またはその区間内に参照元と参照先の両方を含むrlrefが高々一つ存在する
+    # (6):区間(i, i+l)が，連結規則に則って区間(j, j+l)を参照しているなら，f_(j, j+l)はファクタではなく，p_j, p_j+lはファクタの開始位置である
+    # phrase(occ,l) is only defined if l <= lpf[occ] 
+    for (j, l) in refs_by_slpreferred.keys():
+        for i in refs_by_slpreferred[j, l]:
+            qid = lm.getid(lm.lits.slpref, j, i, l)
+            lst = [-qid] + [lm.getid(lm.lits.pstart, j + x) for x in range(1, l)]
+            wcnf.append(lst)
+            wcnf.append(pysat_if(qid, lm.getid(lm.lits.pstart, j)))
+            wcnf.append(pysat_if(qid, lm.getid(lm.lits.pstart, j + l)))
+            wcnf.append(pysat_if(qid, lm.getid(lm.lits.dref, j, l, i)))
+    # // end constraint (6) ###############################
+
+    # // start constraint (7) ###############################
+    # (7):区間(i, i + l)が，連長圧縮規則に則って区間(j, i)を参照しているなら，位置rlreferer[j,l]はフレーズの開始位置となる
+    for (j, l2) in refs_by_rliterated.keys():
+        for l in refs_by_rliterated[j, l2]:
+            # print(f"rlref(7) = {refs_by_rlreferrer}")
+            # print(f"{text[j:i+l]}")
+            qid = lm.getid(lm.lits.rlref, j, j+l2, l)
+            wcnf.append(pysat_if(qid, lm.getid(lm.lits.pstart, j)))
+            wcnf.append(pysat_if(qid, lm.getid(lm.lits.dref, j, l2, j+l2)))
+    # // end constraint (7) ###############################
+
+    # // start constraint () ###############################
+    # ():区間(i, i + l1)が，切断規則に則って区間(j, j + l2)を参照しているなら，p_j, p_j+lはファクタの開始位置である
+    for (j, l2) in refs_by_csreferred.keys():
+        for (i, l1) in refs_by_csreferred[j, l2]:
+            qid = lm.getid(lm.lits.csref, j, l2, i, l1)
+            wcnf.append(pysat_if(qid, lm.getid(lm.lits.pstart, j)))
+            wcnf.append(pysat_if(qid, lm.getid(lm.lits.pstart, j + l2)))
+            wcnf.append(pysat_if(qid, -lm.getid(lm.lits.phrase, j, l2)))
+            wcnf.append(pysat_if(qid, lm.getid(lm.lits.dref, j, l2, i)))
+            # # 追加：切断規則は，連長圧縮規則の右側の子ノードのみを参照することはできない
+            # if (j, l2) in refs_by_rlreferrer.keys():
+            #     for j2 in refs_by_rlreferrer[j, l2]:
+            #         wcnf.append([qid, -lm.getid(lm.lits.rlref, j2, j, l2)])
+                
+
+    # // end constraint () ###############################
+
+    # // start constraint (8) ###############################
+    # (8):qが真なら，qが表す区間を参照先に持つようなslpref, rlref, csref, またはその区間内に左右の子を共に含むrlrefが高々一つ存在する
     for (j, l) in nt_intervals:
-        allreferred_lst = [] # drefのidリスト
+        slpreferred_lst=[] # 連結規則の参照先のノードのidリスト
+        rliterated_lst=[] # 連長圧縮規則の左の子ノード
+        csreferred_lst=[] # 連結規則の参照先のノード
         allrule_lst=[] # 連長圧縮規則全体のノード
 
-        if (j, l) in refs_by_allreferred.keys():
-            for i in refs_by_allreferred[j, l]:
-                allreferred_lst.append(lm.getid(lm.lits.dref, j, l, i))
-        if (j, l) in refs_by_allrule.keys():
-            for i in refs_by_allrule[j, l]:
-                allrule_lst.append(lm.getid(lm.lits.rlref, j, i, l + j - i))
+        if (j, l) in refs_by_slpreferred:
+            for i in refs_by_slpreferred[j, l]:
+                #print(f"slpref: ({j},{i},{l})")
+                slpreferred_lst.append(lm.getid(lm.lits.slpref, j, i, l))
 
+        if (j, l) in refs_by_rliterated:
+            for l2 in refs_by_rliterated[j, l]:
+                #print(f"rlref: ({j},{j+l},{j+l+l2})")
+                rliterated_lst.append(lm.getid(lm.lits.rlref, j, j+l, l2))
+
+        if (j, l) in refs_by_csreferred:
+            for (i, l2) in refs_by_csreferred[j, l]:
+                #print(f"csref: ({j},{l},{i},{l2})")
+                csreferred_lst.append(lm.getid(lm.lits.csref, j, l, i, l2))
+        
+        if (j, l) in refs_by_allrule:
+            for i in refs_by_allrule[j, l]:
+                allrule_lst.append(lm.getid(lm.lits.rlref, j, i, l - i + j))
+            
 
         referred_lst = []
-        referred_lst.extend(allreferred_lst + allrule_lst)
+        referred_lst.extend(slpreferred_lst + rliterated_lst + csreferred_lst + allrule_lst)
         # print(referred_lst)
         clause = pysat_atleast_one(referred_lst)
         var_refatleast, clause_refatleast = pysat_name_cnf(lm, [clause])
         wcnf.extend(clause_refatleast)
         referredid = lm.getid(lm.lits.referred, j, l)
         wcnf.extend(pysat_iff(referredid, var_refatleast))
-    # // end constraint (6) #################################
-
-    # // start constraint (7) ###############################
-    # (7) : 参照先の開始位置は，必ずファクタの開始位置である
-
-    for (j, l) in nt_intervals:
-        referredid = lm.getid(lm.lits.referred, j, l)
-        wcnf.append([-referredid, lm.getid(lm.lits.pstart, j)])  # referred_{j,l} -> pstart_{j}
-
-    # // end constraint (7) ###############################
+    # // end constraint (8) #################################
 
     # // start constraint (9), (10) ###############################
     # (9):crossing intervals cannot be referred to at the same time.
