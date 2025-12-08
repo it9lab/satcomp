@@ -563,7 +563,6 @@ def smallest_CollageSystem_WCNF(text: bytes):
             for i in refs_by_allrule[j, l]:
                 allrule_lst.append(lm.getid(lm.lits.rlref, j, i, l + j - i))
 
-
         referred_lst = []
         referred_lst.extend(allreferred_lst + allrule_lst)
         # print(referred_lst)
@@ -576,7 +575,6 @@ def smallest_CollageSystem_WCNF(text: bytes):
 
     # // start constraint (7) ###############################
     # (7) : 参照先の開始位置は，必ずファクタの開始位置である
-
     for (j, l) in nt_intervals:
         referredid = lm.getid(lm.lits.referred, j, l)
         wcnf.append([-referredid, lm.getid(lm.lits.pstart, j)])  # referred_{j,l} -> pstart_{j}
