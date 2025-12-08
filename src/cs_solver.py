@@ -577,11 +577,11 @@ def smallest_CollageSystem_WCNF(text: bytes):
     # (7) : 参照先の開始位置は，必ずファクタの開始位置である
     for (j, l) in nt_intervals:
         referredid = lm.getid(lm.lits.referred, j, l)
-        wcnf.append([-referredid, lm.getid(lm.lits.pstart, j)])  # referred_{j,l} -> pstart_{j}
-
+        wcnf.append(pysat_if(referredid, lm.getid(lm.lits.pstart, j)))
+                    
     # // end constraint (7) ###############################
 
-    # // start constraint (9), (10) ###############################
+    # // start constraint (8) ###############################
     # (9):crossing intervals cannot be referred to at the same time.
     #rliterated = list(refs_by_rliterated)
     sorted_ntIntervals = [[] for _ in range(n)] # occ * n サイズのリストを作成
@@ -610,21 +610,28 @@ def smallest_CollageSystem_WCNF(text: bytes):
                     id2 = lm.getid(lm.lits.referred, occ2, l2)
                     wcnf.append([-id1, -id2])
 
-    # // start constraint (11) ##############################
+    # // end constraint (8) ###############################
+
+    # // start constraint (9) ##############################
     # すべての文字の深さ，および文字列の深さは0以上であり，nより小さい
     for i in range(0,n):
         for l in range(1, n - i + 1):
             wcnf.append([lm.getid(lm.lits.depth, i, l, 0)])
             wcnf.append([-lm.getid(lm.lits.depth, i, l, n)])
-    # // end constraint (11) ###############################
+    # // end constraint (9) ###############################
 
-    # // start constraint (11) ##############################
+    # // start constraint (10) ##############################
     # depth_{i,l,d}=1ならば，depth_{i,l,d-1}である
     for i in range(0,n):
-       for l in range(1, n - i + 1):
-           for d in range(1,n):              
-               wcnf.append(pysat_if(lm.getid(lm.lits.depth, i, l, d), lm.getid(lm.lits.depth, i, l, d-1)))
-    # // end constraint (11) ###############################
+        for d in range(1,n):
+            wcnf.append(pysat_if(lm.getid(lm.lits.depth, i, 1, d), lm.getid(lm.lits.depth, i, 1, d-1)))
+    
+    # # depth_{i,l,d}=1ならば，depth_{i,l,d-1}である
+    # for i in range(0,n):
+    #    for l in range(1, n - i + 1):
+    #        for d in range(1,n):
+    #            wcnf.append(pysat_if(lm.getid(lm.lits.depth, i, l, d), lm.getid(lm.lits.depth, i, l, d-1)))
+    # // end constraint (10) ###############################
 
     # // start constraint (11) ##############################
     #ともに同一のファクタ内に含まれるi-1, i番目の文字の深さは等しい
@@ -641,11 +648,9 @@ def smallest_CollageSystem_WCNF(text: bytes):
             # =(1+3+(-2))(1+2+(-3))
             wcnf.append([id1, -id2, id3])
             wcnf.append([id1, id2, -id3])
-
-
     # // end constraint (11) ###############################
 
-    # // start constraint (11) ##############################
+    # // start constraint (12) ##############################
     #文字列の深さは，その文字列に含まれる文字の深さの最大値に等しい
     for i in range(0,n):
         for l in range(1, n - i + 1):
@@ -659,12 +664,14 @@ def smallest_CollageSystem_WCNF(text: bytes):
                 # for id in list1:
                 #     wcnf.append([id1, -id])
                 nvar, nclauses = pysat_or(lm.newid, list1)
+                # nvar:条件式の左辺を表すliteral
+                # nclauses:条件式の左辺の節を表す
                 wcnf.extend(nclauses)
                 wcnf.extend(pysat_iff(id1, nvar))
 
-    # // end constraint (11) ###############################
+    # // end constraint (12) ###############################
 
-    # // start constraint (11) ##############################
+    # // start constraint (13) ##############################
     #参照元の深さは参照先の深さより大きい
     for (j, l) in refs_by_allreferred.keys():
         for i in refs_by_allreferred[j, l]:
@@ -679,7 +686,7 @@ def smallest_CollageSystem_WCNF(text: bytes):
                 # =(-1)+2+(-3)
                 wcnf.append([-id1, id2, -id3])
 
-    # // end constraint (11) ############################### 
+    # // end constraint (13) ############################### 
 
 
     '''
