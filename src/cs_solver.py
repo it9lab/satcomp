@@ -576,7 +576,22 @@ def smallest_CollageSystem_WCNF(text: bytes):
     # (7) : 参照先の開始位置は，必ずファクタの開始位置である
     for (j, l) in nt_intervals:
         referredid = lm.getid(lm.lits.referred, j, l)
-        wcnf.append(pysat_if(referredid, lm.getid(lm.lits.pstart, j)))          
+        wcnf.append(pysat_if(referredid, lm.getid(lm.lits.pstart, j)))
+
+    # SLPの参照先の条件
+    for (j, l) in refs_by_slpreferred.keys():
+        for i in refs_by_slpreferred[j, l]:
+            id_list = []
+            id_list.append(lm.getid(lm.lits.pstart, j+l))
+            if (j, l) in refs_by_rlreferrer.keys():
+                for k in refs_by_rlreferrer[j, l]:
+                    id_list.append(-lm.getid(lm.lits.rlref, k, j, l))
+            
+            nvar, nclauses = pysat_and(lm.newid, id_list)
+            wcnf.extend(nclauses)
+            wcnf.append(pysat_if(lm.getid(lm.lits.slpref, j, i, l), nvar))
+
+                    
     # // end constraint (7) ###############################
 
     # // start constraint (8) ###############################
@@ -764,14 +779,12 @@ def binarize_cs(root, cs):
     # print(f"numc = {numc}")
     # print(f"numc_children = {children}")
     # print(f"root_numc = {root}")
-    assert numc == 0 or numc >= 2 or (numc == 1 and children[0][2] == "RLrule" or children[0][2] == "RLrule")
+    assert numc == 0 or numc >= 2 or (numc == 1 and children[0][2] == "RLrule")
 
     if numc == 2:
-        if children[1][2] == "RLrule":
-            # children[1][2] = "RLrule" + str((children[1][1] - children[1][0]) / (children[0][1] - children[0][0])) + "times"
-            cs[root] = (binarize_cs(children[0], cs), binarize_cs(children[1], cs))
-        else:
-            cs[root] = (binarize_cs(children[0], cs), binarize_cs(children[1], cs))
+        # children[1][2] = "RLrule" + str((children[1][1] - children[1][0]) / (children[0][1] - children[0][0])) + "times"
+        # print(f"children_2 = {children[0][2]}")
+        cs[root] = (binarize_cs(children[0], cs), binarize_cs(children[1], cs))
     
     elif numc == 1 and "RLrule" == children[0][2]:
         binarize_cs(children[0], cs)
