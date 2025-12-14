@@ -576,8 +576,7 @@ def smallest_CollageSystem_WCNF(text: bytes):
     # (7) : 参照先の開始位置は，必ずファクタの開始位置である
     for (j, l) in nt_intervals:
         referredid = lm.getid(lm.lits.referred, j, l)
-        wcnf.append(pysat_if(referredid, lm.getid(lm.lits.pstart, j)))
-                    
+        wcnf.append(pysat_if(referredid, lm.getid(lm.lits.pstart, j)))          
     # // end constraint (7) ###############################
 
     # // start constraint (8) ###############################
