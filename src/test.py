@@ -77,7 +77,7 @@ if __name__ == "__main__":
     if len(args) == 1:
         score = [0, 0, 0, 0] 
         while True:
-            str = ''.join(random.choices("ABC", k=30))
+            str = ''.join(random.choices("AB", k=30))
             loop_test(str, score)
     elif len(args) == 2:
         str = args[1]

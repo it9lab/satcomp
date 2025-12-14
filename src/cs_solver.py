@@ -574,22 +574,29 @@ def smallest_CollageSystem_WCNF(text: bytes):
 
     # // start constraint (7) ###############################
     # (7) : 参照先の開始位置は，必ずファクタの開始位置である
+    # 連結規則と切断規則は，連長圧縮規則の右側のノードのみを参照することはできない
     for (j, l) in nt_intervals:
         referredid = lm.getid(lm.lits.referred, j, l)
         wcnf.append(pysat_if(referredid, lm.getid(lm.lits.pstart, j)))
         wcnf.append(pysat_if(referredid, lm.getid(lm.lits.pstart, j + l)))
 
-    # SLPの参照先の条件
-    for (j, l) in refs_by_slpreferred.keys():
-        for i in refs_by_slpreferred[j, l]:
-            id_list = []
-            if (j, l) in refs_by_rlreferrer.keys():
-                for k in refs_by_rlreferrer[j, l]:
-                    id_list.append(-lm.getid(lm.lits.rlref, k, j, l))
+    for (i, l) in refs_by_rlreferrer.keys():
+        for j in refs_by_rlreferrer[i, l]:
+            if (i, l) in nt_intervals:
+                wcnf.append(pysat_if(lm.getid(lm.lits.rlref, j, i, l), -lm.getid(lm.lits.referred, i, l)))
+
+
+    # # SLPの参照先の条件
+    # for (j, l) in refs_by_slpreferred.keys():
+    #     for i in refs_by_slpreferred[j, l]:
+    #         id_list = []
+    #         if (j, l) in refs_by_rlreferrer.keys():
+    #             for k in refs_by_rlreferrer[j, l]:
+    #                 id_list.append(-lm.getid(lm.lits.rlref, k, j, l))
             
-            nvar, nclauses = pysat_and(lm.newid, id_list)
-            wcnf.extend(nclauses)
-            wcnf.append(pysat_if(lm.getid(lm.lits.slpref, j, i, l), nvar))
+    #         nvar, nclauses = pysat_and(lm.newid, id_list)
+    #         wcnf.extend(nclauses)
+    #         wcnf.append(pysat_if(lm.getid(lm.lits.slpref, j, i, l), nvar))
 
                     
     # // end constraint (7) ###############################
@@ -880,19 +887,22 @@ def recover_cs(text: bytes, pstartl, refs_by_slpreferrer, refs_by_rlreferrer, re
     csinternal = [(occ, occ + l2, None) for (occ, l2) in csreferred] # 切り取り規則を表す内部ノードの区間(CS)
             # leaves = [(occ, j + l - i, None)]
             # print(f"occ, j, l = {occ, j, l}")
-    for (j, l) in slpreferred:
-        # 連結規則の参照先かつ切断規則の参照先である場合，重複して登録された内部ノードを削除
-        if (j, l) in csreferred:
-            internal.remove((j, j + l, None))
-        # 連結規則の参照先が連長圧縮規則全体と等しい場合，重複して登録された内部ノードを削除
-        for iter in rliterated:
-            if j == iter[0] and j + l == iter[1] + iter[2]:
-                # print(f"i, l, j, rl={i,l,j,rl}")
-                internal.remove((j, j + l, None))
-        # 連結規則の参照先が単一のノードである場合，内部ノードを削除
-        for leaf in leaves:
-            if j == leaf[0] and j + l == leaf[1]:
-                internal.remove((j, j + l, None))
+    
+    nodes = []
+    # 葉ノードを追加
+    for node in leaves:
+        nodes.append(node)
+    # 連長圧縮規則全体のノードを追加
+    for node in rlinternal:
+        nodes.append(node)
+    # 連結規則の参照先と切断規則の参照先を統合し，まだ追加されていないノードを追加
+    for node in set(internal + csinternal):
+        for added_node in nodes:
+            if node[0] == added_node[0] and node[1] == added_node[1]:
+                break
+        else:
+            nodes.append(node)
+
     
         
     # # 連長圧縮規則の右側の子ノードが切断規則によって参照されている場合，それを内部ノードとして扱う必要はない，なぜならファクタであることが確定しているから
@@ -908,7 +918,6 @@ def recover_cs(text: bytes, pstartl, refs_by_slpreferrer, refs_by_rlreferrer, re
     # print(f"rlinternal = {rlinternal}")
     # print(f"csinternal = {csinternal}")
     # print(f"leaves = {leaves}")
-    nodes = leaves + internal + rlinternal + csinternal # 全てのノード情報が格納
     if len(nodes) > 1:
         nodes.append((0, n, None)) # 根ノードを表す区間を追加
     # print(f"nodes={nodes}")
