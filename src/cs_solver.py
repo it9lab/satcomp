@@ -132,8 +132,7 @@ class CollageSystemLiteralManager(LiteralManager):
         assert name == self.lits.csref
         assert 0 <= i < self.n
         assert 0 <= j < self.n
-        assert 1 < l1 <= self.n
-        assert 1 < l2 <= self.n
+        assert 1 < l1 <= l2 <= self.n
         assert i + l1 <= self.n
         assert j + l2 <= self.n
         assert i + l1 <= j or j + l2 <= i
@@ -513,7 +512,6 @@ def smallest_CollageSystem_WCNF(text: bytes):
 
     # // start constraint (5) ###############################
     # (5): dref_{j,l<-i}を満たすような{j,l,i}の組が存在するとき，文字列区間(j,j+l)はいずれかのファクタの参照先である．逆もまた然り.
-
     for (j, l) in refs_by_allreferred.keys():
         for i in refs_by_allreferred[j, l]:
             # 参照先の区間と参照元の開始位置が確定している
@@ -540,13 +538,13 @@ def smallest_CollageSystem_WCNF(text: bytes):
 
             referred_lst = []
             referred_lst.extend(slpreferred_lst + rliterated_lst + csreferred_lst)
+            # referred_lst = list(set(referred_lst))          
             # print(referred_lst)
-            for i in refs_by_allreferred[j, l]:
-                drefid = lm.getid(lm.lits.dref, j, l, i)
-                clause = pysat_atleast_one(referred_lst)
-                var_refatleast, clause_refatleast = pysat_name_cnf(lm, [clause])
-                wcnf.extend(clause_refatleast)
-                wcnf.extend(pysat_iff(drefid, var_refatleast))
+            drefid = lm.getid(lm.lits.dref, j, l, i)
+            clause = pysat_atleast_one(referred_lst)
+            var_refatleast, clause_refatleast = pysat_name_cnf(lm, [clause])
+            wcnf.extend(clause_refatleast)
+            wcnf.extend(pysat_iff(drefid, var_refatleast))
 
     # // end constraint (5) ###############################
 
@@ -709,7 +707,7 @@ def smallest_CollageSystem_WCNF(text: bytes):
         wcnf.append([-lm.getid(lm.lits.pstart, i)], weight=1)
     for (j, l2) in refs_by_csreferred:
         for (i, l1) in refs_by_csreferred[j, l2]:
-            wcnf.append([-lm.getid(lm.lits.csref, j, l2, i, l1)], weight=1)
+            wcnf.append([-lm.getid(lm.lits.csref, j, l2, i, l1)]) #テスト中
     return lm, wcnf, phrases, refs_by_slpreferrer, refs_by_rlreferrer, refs_by_csreferrer
 
 # リストxとリストyの比較関数
@@ -732,7 +730,6 @@ def postorder_cmp(x, y):
         return -1
     else:
         assert False
-
 
 # given a list of nodes that in postorder of subtree rooted at root,
 # find the direct children of [root_i,root_j) and add it to slp

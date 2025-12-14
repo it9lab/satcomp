@@ -12,6 +12,7 @@ joblib = "*"
 pandas = "*"
 numpy = "*"
 tqdm = "*"
+marshmallow-enum = "*"
 
 [dev-packages]
 black = "*"
