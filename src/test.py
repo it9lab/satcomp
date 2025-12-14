@@ -12,7 +12,7 @@ def test_once(str):
         result = subprocess.run(cmd, capture_output=True, text=True)
 
         s = result.stdout.splitlines()[-1]
-        size.append(s)
+        size.append(int(s))
         print(f"{solver_type}size : {s}")
 
         # エラーがあればエラーログを出力
@@ -77,7 +77,7 @@ if __name__ == "__main__":
     if len(args) == 1:
         score = [0, 0, 0, 0] 
         while True:
-            str = ''.join(random.choices("AAAABC", k=30))
+            str = ''.join(random.choices("ABC", k=30))
             loop_test(str, score)
     elif len(args) == 2:
         str = args[1]

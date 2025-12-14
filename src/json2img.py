@@ -11,7 +11,7 @@ if __name__ == "__main__":
     text = sys.argv[2]
 
     # solverを実行して，結果をjson形式で取得
-    solve = subprocess.run(["python", "src/" + solver_type + "_solver.py", "--str", text], capture_output=True, text=True)
+    solve = subprocess.run(["pipenv", "run", "python", "src/" + solver_type + "_solver.py", "--str", text], capture_output=True, text=True)
     solveout = ''.join(solve.stdout.splitlines())
     data_dict = json.loads(solveout)
 
@@ -34,12 +34,14 @@ if __name__ == "__main__":
     # Process parent nodes in the order of their appearance in the text
     for parent, children in sorted(factors.items(), key=lambda x: x[0][0]):
         if children is None:
-            if not isinstance(parent[2], tuple):
-                dot_str += f'  "{parent}" [label="{text[parent[0]:parent[1]]}"];\n'
-                rank_nodes.append((str(parent), parent[0]))
+            pass
+            # if not isinstance(parent[2], tuple):
+            #     dot_str += f'  "{parent}" [label="{text[parent[0]:parent[1]]}"];\n'
+            #     rank_nodes.append((str(parent), parent[0]))
         else:
             # Process children in order of their starting position
             for c in sorted(children, key=lambda x: x[0]):
+                # 切断規則の場合
                 if isinstance(c[2], tuple):
                     dot_str += f'  "{parent}" -> "{c[2]}";\n'
                     dot_str += f'  "{c[2]}" -> "{num_csref}"[label="Collage"];\n'
@@ -47,13 +49,28 @@ if __name__ == "__main__":
                     assert text[c[0]:c[1]] == text[c[2][2]+c[2][0]:c[2][2]+c[2][0]+(c[1]-c[0])]
                     rank_nodes.append((str(num_csref), c[0]))
                     num_csref += 1
+                elif c[2] == "RestRL":
+                    dot_str += f'  "{parent}" -> "{c}" [label="RestRL"];\n'
+                    dot_str += f'  "{c}" [label = "{text[c[0]:c[1]]}"];\n'
+                    rank_nodes.append((str(c), c[0]))
+                elif c[2] is None or c[2] == "RLrule":
+                    dot_str += f'  "{parent}" -> "{c}";\n'
+                elif c[2] < len(text):
+                    dot_str += f'  "{parent}" -> "{c}" [label="SLP{c[2],c[2]+c[1]-c[0]}"];\n'
+                    dot_str+= f'  "{c}" [label = "{text[c[0]:c[1]]}"];\n'
+                    rank_nodes.append((str(c), c[0]))
                 else:
-                    if c[1] - c[0] == 1 or c[2] == 'RLrule' or c[2] == None:
-                        dot_str += f'  "{parent}" -> "{c}";\n'
-                    elif parent[2] == 'RLrule' and parent[0] == c[2]:
-                        dot_str += f'  "{parent}" -> "{c}" [label="RestRL"];\n'
-                    else:
-                        dot_str += f'  "{parent}" -> "{c}" [label="SLP{c[2],c[2]+c[1]-c[0]}"];\n'
+                    assert c[2] >= len(text)
+                    dot_str += f'  "{parent}" -> "{c}";\n'
+                    dot_str+= f'  "{c}" [label = "{text[c[0]]}"];\n'
+                    rank_nodes.append((str(c), c[0]))
+                # else:
+                #     if c[1] - c[0] == 1 or c[2] == 'RLrule' or c[2] == None:
+                #         dot_str += f'  "{parent}" -> "{c}";\n'
+                #     elif parent[2] == 'RLrule' and parent[0] == c[2]:
+                #         dot_str += f'  "{parent}" -> "{c}" [label="RestRL"];\n'
+                #     else:
+                #         dot_str += f'  "{parent}" -> "{c}" [label="SLP{c[2],c[2]+c[1]-c[0]}"];\n'
 
     # Sort the collected nodes by their starting index to match the text order
     rank_nodes_sorted = sorted(rank_nodes, key=lambda item: item[1])

@@ -722,7 +722,7 @@ def smallest_CollageSystem_WCNF(text: bytes):
         wcnf.append([-lm.getid(lm.lits.pstart, i)], weight=1)
     for (j, l2) in refs_by_csreferred:
         for (i, l1) in refs_by_csreferred[j, l2]:
-            wcnf.append([-lm.getid(lm.lits.csref, j, l2, i, l1)]) #テスト中
+            wcnf.append([-lm.getid(lm.lits.csref, j, l2, i, l1)], weight=1)
     return lm, wcnf, phrases, refs_by_slpreferrer, refs_by_rlreferrer, refs_by_csreferrer
 
 # リストxとリストyの比較関数
@@ -786,7 +786,7 @@ def binarize_cs(root, cs):
         # print(f"children_2 = {children[0][2]}")
         cs[root] = (binarize_cs(children[0], cs), binarize_cs(children[1], cs))
     
-    elif numc == 1 and "RLrule" == children[0][2]:
+    elif numc == 1:
         binarize_cs(children[0], cs)
 
     elif numc > 0:
@@ -821,10 +821,12 @@ def cs2str(root, cs):
             else:
                 res += cs2str(children[0], cs)
                 res += cs2str(children[1], cs)
-        elif str(ref).startswith("RLrule") == True: # 連帳圧縮ルールの繰り返しの一単位分を表す葉（または内部）ノードの場合
+        elif ref == "RLrule": # 連帳圧縮ルール全体を表す内部ノードである場合
             assert len(children) == 2
             # print(f"children_RLrule = {children}")
-            for j in range(int((children[1][1] - children[0][0]) / (children[0][1] - children[0][0]))):
+            len_unit = children[0][1] - children[0][0]
+            num_repeats = (j - i) // len_unit
+            for j in range(num_repeats):
                 res += cs2str(children[0], cs)
 
         else: # 葉ノードの場合
@@ -838,22 +840,26 @@ def cs2str(root, cs):
                         n = (refi, refj, refref)
                         res += cs2str(n, cs)[ref[2]:ref[2]+(j-i)]
                         break
-            elif (ref, ref + j - i, None) in cs:
-                n = (ref, ref + j - i, None)
-                res += cs2str(n, cs)
+            elif isinstance(ref, int):
+                for node in cs.keys():
+                    if node[0] == ref and node[1] == ref + j - i:
+                        n = node
+                        res += cs2str(n, cs)
             else:
-                n = (ref, ref + j - i, "RLrule")
-                res += cs2str(n, cs)
+                assert ref == "RestRL"
     return res
 
 # SLPの解析木の情報を保存
 def recover_cs(text: bytes, pstartl, refs_by_slpreferrer, refs_by_rlreferrer, refs_by_csreferrer):
     n = len(text)
     # 各区間に対応するノードの種類を分類
+    # slpreferred = (参照先の開始位置，参照先の長さ)
     slpreferred = set((refs_by_slpreferrer[i, l], l) for (i, l) in refs_by_slpreferrer.keys()) # 参照元の位置と長さを保持するタプルを生成
     
+    # rliterated = (参照先の開始位置，参照元の位置，参照元の長さ)
     rliterated = set((refs_by_rlreferrer[i, l], i, l) for (i, l) in refs_by_rlreferrer.keys())
 
+    # csreferred = (参照先の開始位置，参照先の長さ)
     csreferred = set((refs_by_csreferrer[i, l][0], refs_by_csreferrer[i, l][1]) for (i, l) in refs_by_csreferrer.keys()) # 参照元の位置と長さ
 
     # ノードが内部ノードかつ蓮長圧縮ルール全体のノードとみなされていた場合，連長圧縮ルール全体のノードとして扱う
@@ -861,7 +867,7 @@ def recover_cs(text: bytes, pstartl, refs_by_slpreferrer, refs_by_rlreferrer, re
 
     # （葉ノードが表す区間，参照先のノードの開始位置）
     leaves = [(i, i + l, refs_by_slpreferrer[i, l]) for (i, l) in refs_by_slpreferrer.keys()]
-    leaves.extend([(i, i + l, refs_by_rlreferrer[i, l]) for (i, l) in refs_by_rlreferrer.keys()])
+    leaves.extend([(i, i + l, "RestRL") for (i, l) in refs_by_rlreferrer.keys()])
     #切断規則は，（葉ノードが表す区間，（参照先の区間，参照する文字列の開始位置））
     leaves.extend([(i, i + l, (refs_by_csreferrer[i, l][0], refs_by_csreferrer[i, l][0] + refs_by_csreferrer[i, l][1], refs_by_csreferrer[i, l][2])) for (i, l) in refs_by_csreferrer.keys()])
     for i in range(len(pstartl) - 1):
@@ -874,12 +880,20 @@ def recover_cs(text: bytes, pstartl, refs_by_slpreferrer, refs_by_rlreferrer, re
             # leaves = [(occ, j + l - i, None)]
             # print(f"occ, j, l = {occ, j, l}")
     for (j, l) in slpreferred:
+        # 連結規則の参照先かつ切断規則の参照先である場合，重複して登録された内部ノードを削除
         if (j, l) in csreferred:
             internal.remove((j, j + l, None))
-        for (ri, rl) in refs_by_rlreferrer.keys():
-            if j == refs_by_rlreferrer[ri, rl] and j + l == ri + rl:
+        # 連結規則の参照先が連長圧縮規則全体と等しい場合，重複して登録された内部ノードを削除
+        for iter in rliterated:
+            if j == iter[0] and j + l == iter[1] + iter[2]:
                 # print(f"i, l, j, rl={i,l,j,rl}")
                 internal.remove((j, j + l, None))
+        # 連結規則の参照先が単一のノードである場合，内部ノードを削除
+        for leaf in leaves:
+            if j == leaf[0] and j + l == leaf[1]:
+                internal.remove((j, j + l, None))
+    
+        
     # # 連長圧縮規則の右側の子ノードが切断規則によって参照されている場合，それを内部ノードとして扱う必要はない，なぜならファクタであることが確定しているから
     # for (ri, rl) in refs_by_rlreferrer.keys():
     #     for (csi, csl) in csreferred:
