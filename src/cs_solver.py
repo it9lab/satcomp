@@ -577,12 +577,12 @@ def smallest_CollageSystem_WCNF(text: bytes):
     for (j, l) in nt_intervals:
         referredid = lm.getid(lm.lits.referred, j, l)
         wcnf.append(pysat_if(referredid, lm.getid(lm.lits.pstart, j)))
+        wcnf.append(pysat_if(referredid, lm.getid(lm.lits.pstart, j + l)))
 
     # SLPの参照先の条件
     for (j, l) in refs_by_slpreferred.keys():
         for i in refs_by_slpreferred[j, l]:
             id_list = []
-            id_list.append(lm.getid(lm.lits.pstart, j+l))
             if (j, l) in refs_by_rlreferrer.keys():
                 for k in refs_by_rlreferrer[j, l]:
                     id_list.append(-lm.getid(lm.lits.rlref, k, j, l))
@@ -734,7 +734,8 @@ def postorder_cmp(x, y):
     j2 = y[1]
     # print(f"compare: {x} vs {y}")
     if i1 == i2 and i2 == j2:
-        return 0
+        assert False
+        # return 0
     if j1 <= i2: # x < y
         return -1
     elif j2 <= i1: # y < x

@@ -29,7 +29,7 @@ if __name__ == "__main__":
     rank_nodes = []  # Collect nodes with their starting index for ordering
     num_csref = 0
 
-    dot_str += "  graph [splines=line];\n"  # Use polyline edges for clarity
+    dot_str += "  graph [splines=polyline];\n"  # Use polyline edges for clarity
 
     # Process parent nodes in the order of their appearance in the text
     for parent, children in sorted(factors.items(), key=lambda x: x[0][0]):
