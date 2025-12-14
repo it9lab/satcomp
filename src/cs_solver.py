@@ -532,9 +532,10 @@ def smallest_CollageSystem_WCNF(text: bytes):
 
             # csrefは参照元の長さ分だけ存在しうる
             if (j, l) in refs_by_csreferred.keys():
-                for (i, l2) in refs_by_csreferred[j, l]:
-                    #print(f"csref: ({j},{l},{i},{l2})")
-                    csreferred_lst.append(lm.getid(lm.lits.csref, j, l, i, l2))
+                for ref in refs_by_csreferred[j, l]:
+                    if ref[0] == i:
+                        #print(f"csref: ({j},{l},{i},{l2})")
+                        csreferred_lst.append(lm.getid(lm.lits.csref, j, l, ref[0], ref[1]))
 
             referred_lst = []
             referred_lst.extend(slpreferred_lst + rliterated_lst + csreferred_lst)
