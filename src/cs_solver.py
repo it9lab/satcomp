@@ -19,10 +19,9 @@ from mysat import (
     Literal,
     LiteralManager,
     pysat_and,
-    pysat_atleast_one,
+    pysat_atmost,
     pysat_if,
     pysat_iff,
-    pysat_name_cnf,
     pysat_or,
 )
 from slp import SLPExp, SLPType
@@ -383,7 +382,7 @@ def smallest_CollageSystem_WCNF(text: bytes):
             #print([j, l], "←",i)
     #print(refs_by_allreferred.keys())
 
-    # refの添え字のリストとref^rの添え字のリストを結合させ重複を除いたリスト(csrefを追加済み)
+    # (参照元の開始位置，参照元の長さ)
     refs_by_allreferrers = list(set(refs_by_slpreferrer.keys())|set(refs_by_rlreferrer.keys())|set(refs_by_csreferrer.keys()))
 
     # 二文字以上のファクタになりうる変数の組をphrasesに追加
@@ -467,7 +466,6 @@ def smallest_CollageSystem_WCNF(text: bytes):
     # // end constraint (1)(2) ###############################
 
     # // start constraint (3),(4)###############################
-    # (4):if phrase(j,l) = true there must be exactly one i < j such that ref(j,i,l) is true
     for (i, l) in refs_by_allreferrers:
         reflst1 = []
         reflst2 = []
@@ -489,24 +487,15 @@ def smallest_CollageSystem_WCNF(text: bytes):
             #     reflst3 = reflst3 + [lm.getid(lm.lits.csref, j, l2, i, l)]
 
         reflst = reflst1 + reflst2 + reflst3
-        # reflst = list(set(reflst))
-        # CardEnc.atmost(literalのリスト,閾値 k) -> "literalのリストの論理和 <= k"を表すリスト
-        clauses = CardEnc.atmost(
-            reflst,
-            bound=1,
-            vpool=lm.vpool,
-        )
-        wcnf.extend(clauses)
+        # (3) : phrase_{i,l}を満たすならば，いずれかのref_{.<-i,l}，ref^r_{.<-i,l}，ref^c_{.<-i,l}を満たす．
+        nvar, nclauses = pysat_or(lm.newid, reflst)
+        wcnf.extend(nclauses)
+        wcnf.extend(pysat_iff(lm.getid(lm.lits.phrase, i, l), nvar))
 
-        # (3):ref_{・<-j,l}+ref^r{・<-j,l}+ref^c{・<-j,l}に対して,iが少なくとも一つが存在する.
-        clause = pysat_atleast_one(reflst)
-
-        # var_atleast:条件式(3)の右辺を表すliteral
-        # clause_atleast:条件式(3)の右辺の節を表す
-        var_atleast, clause_atleast = pysat_name_cnf(lm, [clause]) # この関数じゃなくていいかも？
-        wcnf.extend(clause_atleast)
-        phrase = lm.getid(lm.lits.phrase, i, l)
-        wcnf.extend(pysat_iff(phrase, var_atleast))
+        # (4) : 高々一つのref_{.<-i,l}，ref^r_{.<-i,l}，ref^c_{.<-i,l}を満たす．
+        nvar, nclauses = pysat_atmost(lm, reflst, 1)
+        wcnf.extend(nclauses)
+        wcnf.append([nvar])
 
     # // end constraint (3),(4)###############################
 
@@ -521,8 +510,10 @@ def smallest_CollageSystem_WCNF(text: bytes):
             csreferred_lst=[] # 切断規則の参照先のノード
 
             # slprefはひとつだけ
-            if (j,l) in refs_by_slpreferred.keys() and i in refs_by_slpreferred[j, l]:
-                slpreferred_lst.append(lm.getid(lm.lits.slpref, j, i, l))
+            if (j,l) in refs_by_slpreferred.keys():
+                if i in refs_by_slpreferred[j, l]:
+                    #print(f"slpref: ({j},{l},{i})")
+                    slpreferred_lst.append(lm.getid(lm.lits.slpref, j, i, l))
 
             # rlrefは参照元の長さの倍数分だけ存在しうる(rliteratedに格納済み)
             if (j,l) in refs_by_rliterated.keys():
@@ -541,11 +532,9 @@ def smallest_CollageSystem_WCNF(text: bytes):
             referred_lst.extend(slpreferred_lst + rliterated_lst + csreferred_lst)
             # referred_lst = list(set(referred_lst))          
             # print(referred_lst)
-            drefid = lm.getid(lm.lits.dref, j, l, i)
-            clause = pysat_atleast_one(referred_lst)
-            var_refatleast, clause_refatleast = pysat_name_cnf(lm, [clause])
-            wcnf.extend(clause_refatleast)
-            wcnf.extend(pysat_iff(drefid, var_refatleast))
+            nvar, nclauses = pysat_or(lm.newid, referred_lst)
+            wcnf.extend(nclauses)
+            wcnf.extend(pysat_iff(lm.getid(lm.lits.dref, j, l, i), nvar))
 
     # // end constraint (5) ###############################
 
@@ -565,11 +554,9 @@ def smallest_CollageSystem_WCNF(text: bytes):
         referred_lst = []
         referred_lst.extend(allreferred_lst + allrule_lst)
         # print(referred_lst)
-        clause = pysat_atleast_one(referred_lst)
-        var_refatleast, clause_refatleast = pysat_name_cnf(lm, [clause])
-        wcnf.extend(clause_refatleast)
-        referredid = lm.getid(lm.lits.referred, j, l)
-        wcnf.extend(pysat_iff(referredid, var_refatleast))
+        nvar, nclauses = pysat_or(lm.newid, referred_lst)
+        wcnf.extend(nclauses)
+        wcnf.extend(pysat_iff(lm.getid(lm.lits.referred, j, l), nvar))
     # // end constraint (6) #################################
 
     # // start constraint (7) ###############################
@@ -635,9 +622,11 @@ def smallest_CollageSystem_WCNF(text: bytes):
     # // start constraint (9) ##############################
     # すべての文字の深さ，および文字列の深さは0以上であり，nより小さい
     for i in range(0,n):
-        for l in range(1, n - i + 1):
-            wcnf.append([lm.getid(lm.lits.depth, i, l, 0)])
-            wcnf.append([-lm.getid(lm.lits.depth, i, l, n)])
+        wcnf.append([lm.getid(lm.lits.depth, i, 1, 0)])
+        wcnf.append([-lm.getid(lm.lits.depth, i, 1, n)])
+        # for l in range(1, n - i + 1):
+        #     wcnf.append([lm.getid(lm.lits.depth, i, l, 0)])
+        #     wcnf.append([-lm.getid(lm.lits.depth, i, l, n)])
     # // end constraint (9) ###############################
 
     # // start constraint (10) ##############################
@@ -655,19 +644,22 @@ def smallest_CollageSystem_WCNF(text: bytes):
 
     # // start constraint (11) ##############################
     #ともに同一のファクタ内に含まれるi-1, i番目の文字の深さは等しい
-    for i in range(0,n-1):
+    for i in range(1,n):
+        id1 = lm.getid(lm.lits.pstart, i)
         for d in range(0,n):
-            id1 = lm.getid(lm.lits.pstart, i+1)
-            id2 = lm.getid(lm.lits.depth, i, 1, d)
-            id3 = lm.getid(lm.lits.depth, i+1, 1, d)
+            id2 = lm.getid(lm.lits.depth, i-1, 1, d)
+            id3 = lm.getid(lm.lits.depth, i, 1, d)
+            wcnf.append([id1, -id2, id3])
+            wcnf.append([id1, id2, -id3])
+
+            # memo
             # -1->23+(-2)(-3)
             # =1+23+(-2)(-3)
             # =1+(23+(-2))(23+(-3))
             # =1+((2+(-2))(3+(-2)))((2+(-3))(3+(-3)))
             # =1+(3+(-2))(2+(-3))
             # =(1+3+(-2))(1+2+(-3))
-            wcnf.append([id1, -id2, id3])
-            wcnf.append([id1, id2, -id3])
+
     # // end constraint (11) ###############################
 
     # // start constraint (12) ##############################
@@ -699,12 +691,14 @@ def smallest_CollageSystem_WCNF(text: bytes):
             #番兵であるd=nを使う，d=nのとき，depth_{j,l,d}は必ず偽である
             for d in range(1,n+1):
                 id2 = lm.getid(lm.lits.depth, i, 1, d)
-                id3 = lm.getid(lm.lits.depth, j, l, d - 1)
+                id3 = lm.getid(lm.lits.depth, j, l, d-1)
+                wcnf.append([-id1, id2, -id3])
+
+                # memo
                 # 1->((-2)->(-3))
                 # =1->(2+(-3))
                 # =(-1)+(2+(-3))
                 # =(-1)+2+(-3)
-                wcnf.append([-id1, id2, -id3])
 
     # // end constraint (13) ############################### 
 
@@ -1004,7 +998,7 @@ def smallest_CollageSystem(text: bytes, exp: Optional[SLPExp] = None) -> SLPType
     root, cs = recover_cs(text, posl, slprefs, rlrefs, csrefs)
     # print(f"root={root}, cs = {cs}, cskeys={cs.keys()}") 
 
-    cssize = len(posl) - 2 + len(set(text)) + len(csrefs) #RLSLPのサイズ+切断規則の数
+    cssize = len(posl) - 2 + len(set(text)) + len(csrefs) #分解数+文字の種類数+切断規則の数
     # print(cssize)
 
     if exp:

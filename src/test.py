@@ -39,7 +39,7 @@ def loop_test(str, score):
         cmd = ["python", "src/json2img.py", solver_type, str]
         result = subprocess.run(cmd, capture_output=True, text=True)
         s = result.stdout.splitlines()[-1]
-        size.append(s)
+        size.append(int(s))
         print(f"{solver_type}size : {s}")
 
         # エラーがあればエラーログを出力

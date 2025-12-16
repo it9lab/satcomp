@@ -108,8 +108,7 @@ def pysat_and(new_var: Callable[[], int], xs: list[int]) -> Tuple[int, list[list
 
 
 def pysat_atmost(
-    lm: LiteralManager, xs: list[int], bound: int
-) -> Tuple[int, list[list[int]]]:
+    lm: LiteralManager, xs: list[int], bound: int) -> Tuple[int, list[list[int]]]:
     """
     Create a literal and clauses such that the number of true literals in `xs` is at most `bound`.
     """
