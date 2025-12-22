@@ -250,12 +250,9 @@ def smallest_CollageSystem_WCNF(text: bytes):
     for i in range(0, n):
         #一文字のファクタ
         phrases.append((i, 1))
-        for l in range(1, n - i + 1):
-            for d in range(0, n+1):
-                lm.newid(lm.lits.depth, i, l, d)
-            # lm.newid(lm.lits.phrase, i, l)  # definition of f_{i,l}(type-A)
+        # lm.newid(lm.lits.phrase, i, l)  # definition of f_{i,l}(type-A)
 
-            """"
+        """"
         for rll in range(1, max(2, rllpf[i] + 1)):
             phrases.append((i, rll))
             lm.newid(lm.lits.phrase, i, rll)  # definition of f_{i,l}(type-b)
@@ -369,7 +366,7 @@ def smallest_CollageSystem_WCNF(text: bytes):
                 refs_by_allreferred[j, l].append(i)
         if refs_by_rliterated.get((j, l)):
             if not (j, l) in refs_by_allreferred:
-                    refs_by_allreferred[j, l] = []
+                refs_by_allreferred[j, l] = []
             refs_by_allreferred[j, l].append(j+l)
         if refs_by_csreferred.get((j, l)):
             for (i, l2) in refs_by_csreferred[j, l]:
@@ -404,6 +401,9 @@ def smallest_CollageSystem_WCNF(text: bytes):
                 lm.getid(lm.lits.pstart, (i + l)), #p_(i+l)の取得
             ]
             lm.newid(lm.lits.phrase, i, l)
+            for d in range(0, n + 1):
+                # depth_(i, l, n)を番兵として追加
+                lm.newid(lm.lits.depth, i, l, d)
             #print(lm.getid(lm.lits.phrase, i, l), i, l)
 
         # range_iff_startp:plst全体を表すliteral
@@ -487,6 +487,7 @@ def smallest_CollageSystem_WCNF(text: bytes):
             #     reflst3 = reflst3 + [lm.getid(lm.lits.csref, j, l2, i, l)]
 
         reflst = reflst1 + reflst2 + reflst3
+        reflst = list(set(reflst))
         # (3) : phrase_{i,l}を満たすならば，いずれかのref_{.<-i,l}，ref^r_{.<-i,l}，ref^c_{.<-i,l}を満たす．
         nvar, nclauses = pysat_or(lm.newid, reflst)
         wcnf.extend(nclauses)
@@ -530,6 +531,7 @@ def smallest_CollageSystem_WCNF(text: bytes):
 
             referred_lst = []
             referred_lst.extend(slpreferred_lst + rliterated_lst + csreferred_lst)
+            referred_lst = list(set(referred_lst))
             # referred_lst = list(set(referred_lst))          
             # print(referred_lst)
             nvar, nclauses = pysat_or(lm.newid, referred_lst)
@@ -539,7 +541,7 @@ def smallest_CollageSystem_WCNF(text: bytes):
     # // end constraint (5) ###############################
 
     # // start constraint (6) ###############################
-    # (6):qが真なら，qが表す区間を参照先に持つようなdref，またはその区間内に参照元と参照先の両方を含むrlrefが高々一つ存在する
+    # (6):qが真なら，qが表す区間を参照先に持つようなdref，またはその区間内に参照元と参照先の両方を含むrlrefが存在する
     for (j, l) in nt_intervals:
         allreferred_lst = [] # drefのidリスト
         allrule_lst=[] # 連長圧縮規則全体のノード
@@ -547,12 +549,17 @@ def smallest_CollageSystem_WCNF(text: bytes):
         if (j, l) in refs_by_allreferred.keys():
             for i in refs_by_allreferred[j, l]:
                 allreferred_lst.append(lm.getid(lm.lits.dref, j, l, i))
-        if (j, l) in refs_by_allrule.keys():
-            for i in refs_by_allrule[j, l]:
-                allrule_lst.append(lm.getid(lm.lits.rlref, j, i, l + j - i))
+        # if (j, l) in refs_by_allrule.keys():
+        #     for i in refs_by_allrule[j, l]:
+        #         allrule_lst.append(lm.getid(lm.lits.rlref, j, i, l + j - i))
+        for (i, l2) in refs_by_rlreferrer.keys():
+            if j in refs_by_rlreferrer[i, l2] and j + l == i + l2:
+                allrule_lst.append(lm.getid(lm.lits.rlref, j, i, l2))
+                
 
         referred_lst = []
         referred_lst.extend(allreferred_lst + allrule_lst)
+        referred_lst = list(set(referred_lst))
         # print(referred_lst)
         nvar, nclauses = pysat_or(lm.newid, referred_lst)
         wcnf.extend(nclauses)
@@ -561,12 +568,12 @@ def smallest_CollageSystem_WCNF(text: bytes):
 
     # // start constraint (7) ###############################
     # (7) : 参照先の開始位置は，必ずファクタの開始位置である
-    # 連結規則と切断規則は，連長圧縮規則の右側のノードのみを参照することはできない
     for (j, l) in nt_intervals:
         referredid = lm.getid(lm.lits.referred, j, l)
         wcnf.append(pysat_if(referredid, lm.getid(lm.lits.pstart, j)))
         wcnf.append(pysat_if(referredid, lm.getid(lm.lits.pstart, j + l)))
 
+    # 連結規則と切断規則は，連長圧縮規則の右側のノードのみを参照することはできない
     for (i, l) in refs_by_rlreferrer.keys():
         for j in refs_by_rlreferrer[i, l]:
             if (i, l) in nt_intervals:
@@ -623,7 +630,7 @@ def smallest_CollageSystem_WCNF(text: bytes):
     # すべての文字の深さ，および文字列の深さは0以上であり，nより小さい
     for i in range(0,n):
         wcnf.append([lm.getid(lm.lits.depth, i, 1, 0)])
-        wcnf.append([-lm.getid(lm.lits.depth, i, 1, n)])
+        wcnf.append([-lm.getid(lm.lits.depth, i, 1, 2)])
         # for l in range(1, n - i + 1):
         #     wcnf.append([lm.getid(lm.lits.depth, i, l, 0)])
         #     wcnf.append([-lm.getid(lm.lits.depth, i, l, n)])
@@ -645,12 +652,12 @@ def smallest_CollageSystem_WCNF(text: bytes):
     # // start constraint (11) ##############################
     #ともに同一のファクタ内に含まれるi-1, i番目の文字の深さは等しい
     for i in range(1,n):
-        id1 = lm.getid(lm.lits.pstart, i)
+        pos = lm.getid(lm.lits.pstart, i)
         for d in range(0,n):
-            id2 = lm.getid(lm.lits.depth, i-1, 1, d)
-            id3 = lm.getid(lm.lits.depth, i, 1, d)
-            wcnf.append([id1, -id2, id3])
-            wcnf.append([id1, id2, -id3])
+            bwd_dpth = lm.getid(lm.lits.depth, i-1, 1, d)
+            fwd_dpth = lm.getid(lm.lits.depth, i, 1, d)
+            wcnf.append([pos, -bwd_dpth, fwd_dpth])
+            wcnf.append([pos, bwd_dpth, -fwd_dpth])
 
             # memo
             # -1->23+(-2)(-3)
@@ -667,19 +674,19 @@ def smallest_CollageSystem_WCNF(text: bytes):
     for i in range(0,n):
         for l in range(1, n - i + 1):
             for d in range(0,n):
-                id1 = lm.getid(lm.lits.depth, i, l, d)
-                list1 = [lm.getid(lm.lits.depth, k, 1, d) for k in range(i, i + l)]
+                str_dpth = lm.getid(lm.lits.depth, i, l, d)
+                chr_dpth = [lm.getid(lm.lits.depth, k, 1, d) for k in range(i, i + l)]
                 # (1->(2+3))((2+3)->1)
                 # =(-1+(2+3))((-2)(-3)+1)
                 # =(-1+2+3)(-2+1)(-3+1)
                 # wcnf.append([-id1] + [id for id in list1])
                 # for id in list1:
                 #     wcnf.append([id1, -id])
-                nvar, nclauses = pysat_or(lm.newid, list1)
+                nvar, nclauses = pysat_or(lm.newid, chr_dpth)
                 # nvar:条件式の左辺を表すliteral
                 # nclauses:条件式の左辺の節を表す
                 wcnf.extend(nclauses)
-                wcnf.extend(pysat_iff(id1, nvar))
+                wcnf.extend(pysat_iff(str_dpth, nvar))
 
     # // end constraint (12) ###############################
 
@@ -687,21 +694,27 @@ def smallest_CollageSystem_WCNF(text: bytes):
     #参照元の深さは参照先の深さより大きい
     for (j, l) in refs_by_allreferred.keys():
         for i in refs_by_allreferred[j, l]:
-            id1 = lm.getid(lm.lits.dref, j, l, i)
-            #番兵であるd=nを使う，d=nのとき，depth_{j,l,d}は必ず偽である
-            for d in range(1,n+1):
-                id2 = lm.getid(lm.lits.depth, i, 1, d)
-                id3 = lm.getid(lm.lits.depth, j, l, d-1)
-                wcnf.append([-id1, id2, -id3])
+            dref_id = lm.getid(lm.lits.dref, j, l, i)
+            for d in range(0, n):
+                referred_dpth = lm.getid(lm.lits.depth, j, l, d)
+                referrer_dpth = lm.getid(lm.lits.depth, i, 1, d + 1)
+                wcnf.append([-dref_id, -referred_dpth, referrer_dpth])
 
                 # memo
-                # 1->((-2)->(-3))
-                # =1->(2+(-3))
-                # =(-1)+(2+(-3))
-                # =(-1)+2+(-3)
+                # 1->(2->3)
+                # =1->(-2+3)
+                # =(-1)+((-2)+3)
+                # =(-1)+(-2)+3
 
     # // end constraint (13) ############################### 
 
+    # lll = []
+    # for i in range(len(wcnf.hard)):
+    #     id_list = [4385, -4385, 448]
+    #     for id in id_list:
+    #         if id == wcnf.hard[i][0]:
+    #             lll.append(wcnf.hard[i])
+                
 
     '''
     # // start constraint (11) ##############################
@@ -723,7 +736,7 @@ def smallest_CollageSystem_WCNF(text: bytes):
         wcnf.append([-lm.getid(lm.lits.pstart, i)], weight=1)
     for (j, l2) in refs_by_csreferred:
         for (i, l1) in refs_by_csreferred[j, l2]:
-            wcnf.append([-lm.getid(lm.lits.csref, j, l2, i, l1)], weight=1)
+            wcnf.append([-lm.getid(lm.lits.csref, j, l2, i, l1)])
     return lm, wcnf, phrases, refs_by_slpreferrer, refs_by_rlreferrer, refs_by_csreferrer
 
 # リストxとリストyの比較関数
