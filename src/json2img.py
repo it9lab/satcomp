@@ -11,7 +11,7 @@ if __name__ == "__main__":
     text = sys.argv[2]
 
     # solverを実行して，結果をjson形式で取得
-    solve = subprocess.run(["pipenv", "run", "python", "src/" + solver_type + "_solver.py", "--str", text], capture_output=True, text=True)
+    solve = subprocess.run(["python", "src/" + solver_type + "_solver.py", "--str", text], capture_output=True, text=True)
     solveout = ''.join(solve.stdout.splitlines())
     data_dict = json.loads(solveout)
 
