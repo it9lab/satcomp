@@ -30,13 +30,13 @@ def test_once(str):
 
     print("-" * 40)
 
-def loop_test(str, score):
+def loop_test(string, score):
     # input("Press Enter key to start the loop...")
-    print(f"string : {str}")
+    print(f"string : {string}")
     size = []
 
     for solver_type in ["slp", "rlslp", "cs"]: 
-        cmd = ["python", "src/json2img.py", solver_type, str]
+        cmd = ["python", "src/json2img.py", solver_type, string]
         result = subprocess.run(cmd, capture_output=True, text=True)
         s = result.stdout.splitlines()[-1]
         size.append(int(s))
@@ -47,20 +47,20 @@ def loop_test(str, score):
             print("Standard Error:")
             print(result.stderr)
             with open('log/test.log', 'a') as f:
-                f.write('error string on ' + solver_type + ':' + str +'\n')
+                f.write('error string on ' + solver_type + ':' + string +'\n')
 
     # Collage SystemのサイズがSLPやRLSLPのサイズを超えていないか確認
     if size[2] > size[0] or size[2] > size[1]:
         print("cs is larger than SLP or RLSLP size.")
         with open('log/test.log', 'a') as f:
-            f.write('strange string :' + str +'\n')
+            f.write('strange string :' + string +'\n')
     
 
     # Collage Systemのサイズが最も小さいとき
     elif size[2] < size[0] and size[2] < size[1]:
         score[2] += 1
         with open('log/test.log', 'a') as f:
-            f.write('good string :' + str + ', size : ' + '-'.join(size) + '\n')
+            f.write('good string :' + string + ', size : ' + str(size[0]) + "-" + str(size[1]) + "-" + str(size[2]) + '\n')
     
     elif size[2] == size[1] and size[1] < size[0]:
         score[1] += 1
@@ -77,11 +77,11 @@ if __name__ == "__main__":
     if len(args) == 1:
         score = [0, 0, 0, 0] 
         while True:
-            str = ''.join(random.choices("AB", k=30))
-            loop_test(str, score)
+            string = ''.join(random.choices("AB", k=35))
+            loop_test(string, score)
     elif len(args) == 2:
-        str = args[1]
-        test_once(str)
+        string = args[1]
+        test_once(string)
     else:
         print("Usage: python src/test.py [string]")
         sys.exit(1)

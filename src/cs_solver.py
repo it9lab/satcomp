@@ -401,9 +401,6 @@ def smallest_CollageSystem_WCNF(text: bytes):
                 lm.getid(lm.lits.pstart, (i + l)), #p_(i+l)の取得
             ]
             lm.newid(lm.lits.phrase, i, l)
-            for d in range(0, n + 1):
-                # depth_(i, l, n)を番兵として追加
-                lm.newid(lm.lits.depth, i, l, d)
             #print(lm.getid(lm.lits.phrase, i, l), i, l)
 
         # range_iff_startp:plst全体を表すliteral
@@ -519,8 +516,10 @@ def smallest_CollageSystem_WCNF(text: bytes):
             # rlrefは参照元の長さの倍数分だけ存在しうる(rliteratedに格納済み)
             if (j,l) in refs_by_rliterated.keys():
                 for l2 in refs_by_rliterated[j, l]:
-                    #print(f"rlref: ({j},{j+l},{j+l+l2})")
-                    rliterated_lst.append(lm.getid(lm.lits.rlref, j, j+l, l2))
+                    if i == j + l:
+                        #print(f"rlref: ({j},{j+l},{j+l+l2})")
+                        assert  l2 % l == 0
+                        rliterated_lst.append(lm.getid(lm.lits.rlref, j, i, l2))
 
             # csrefは参照元の長さ分だけ存在しうる
             if (j, l) in refs_by_csreferred.keys():
@@ -626,11 +625,16 @@ def smallest_CollageSystem_WCNF(text: bytes):
 
     # // end constraint (8) ###############################
 
+    for i in range(0, n):
+        for l in range(1, n - i + 1):
+            for d in range(0, n + 1):
+                lm.newid(lm.lits.depth, i, l, d)  # definition of depth_{i,l,d}
+
     # // start constraint (9) ##############################
     # すべての文字の深さ，および文字列の深さは0以上であり，nより小さい
     for i in range(0,n):
         wcnf.append([lm.getid(lm.lits.depth, i, 1, 0)])
-        wcnf.append([-lm.getid(lm.lits.depth, i, 1, 2)])
+        wcnf.append([-lm.getid(lm.lits.depth, i, 1, n)])
         # for l in range(1, n - i + 1):
         #     wcnf.append([lm.getid(lm.lits.depth, i, l, 0)])
         #     wcnf.append([-lm.getid(lm.lits.depth, i, l, n)])
@@ -736,7 +740,7 @@ def smallest_CollageSystem_WCNF(text: bytes):
         wcnf.append([-lm.getid(lm.lits.pstart, i)], weight=1)
     for (j, l2) in refs_by_csreferred:
         for (i, l1) in refs_by_csreferred[j, l2]:
-            wcnf.append([-lm.getid(lm.lits.csref, j, l2, i, l1)])
+            wcnf.append([-lm.getid(lm.lits.csref, j, l2, i, l1)], weight=1)
     return lm, wcnf, phrases, refs_by_slpreferrer, refs_by_rlreferrer, refs_by_csreferrer
 
 # リストxとリストyの比較関数
