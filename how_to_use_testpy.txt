@@ -31,11 +31,11 @@ conda(satcomp){ (conda listで確認可能)
     graphviz
     pip(python3.8){ (pip listで確認可能)
         pipenv{ (pipenv graphで確認可能)
-            pipfile
+            packages (written in pipfile)
         }
     }
 }
 graphvizをpipでcondaやpipenv内にインストールしてもdotコマンドが認識されない，なぜ？
-pythonパッケージのgraphvizにターミナルで実行できるコマンドは含まれないから
-pipやpipenvではなく，brewやcondaにインストールして解決できる
-pythonの実行ファイルは，conda環境にも，pipenv環境にも存在している．デバッグなどで用いる時は，pipenv環境の中にある実行ファイルを指定する．
+    pythonパッケージのgraphvizにターミナルで実行できるコマンドは含まれないから(dot -Vで確認できる)
+    pipやpipenvではなく，brewやcondaにインストールして解決できる
+    pythonの実行ファイルは，conda環境にも，pipenv環境にも存在している．デバッグなどで用いる時は，pipenv環境の中にある実行ファイルを指定する．
