@@ -8,7 +8,7 @@ def test_once(str):
 
     size = {}
     for solver_type in ["slp", "rlslp", "cs"]: 
-        cmd = ["python", "src/json2img.py", solver_type, str]
+        cmd = ["python", "migita/json2img.py", solver_type, str]
         result = subprocess.run(cmd, capture_output=True, text=True)
 
         s = result.stdout.splitlines()[-1]
@@ -36,7 +36,7 @@ def loop_test(string, score):
 
     size = {}
     for solver_type in ["cs", "rlslp", "slp"]: 
-        cmd = ["python", "src/json2img.py", solver_type, string]
+        cmd = ["python", "migita/json2img.py", solver_type, string]
         result = subprocess.run(cmd, capture_output=True, text=True)
         s = result.stdout.splitlines()[-1]
         size[solver_type] = int(s)
@@ -46,20 +46,20 @@ def loop_test(string, score):
         if result.stderr:
             print("Standard Error:")
             print(result.stderr)
-            with open('log/test.log', 'a') as f:
+            with open('migita/log/test.log', 'a') as f:
                 f.write('error string on ' + solver_type + ':' + string +'\n')
 
     # Collage SystemのサイズがSLPやRLSLPのサイズを超えていないか確認
     if size["cs"] > size["slp"] or size["cs"] > size["rlslp"]:
         print("cs is larger than SLP or RLSLP size.")
-        with open('log/test.log', 'a') as f:
+        with open('migita/log/test.log', 'a') as f:
             f.write('strange string :' + string +'\n')
     
 
     # Collage Systemのサイズが最も小さいとき
     elif size["cs"] < size["slp"] and size["cs"] < size["rlslp"]:
         score["cs"] += 1
-        with open('log/test.log', 'a') as f:
+        with open('migita/log/test.log', 'a') as f:
             f.write('good string :' + string + ', size : ' + str(size["slp"]) + "-" + str(size["rlslp"]) + "-" + str(size["cs"]) + '\n')
     
     elif size["cs"] == size["rlslp"] and size["rlslp"] < size["slp"]:
@@ -83,5 +83,5 @@ if __name__ == "__main__":
         string = args[1]
         test_once(string)
     else:
-        print("Usage: python src/test.py [string]")
+        print("Usage: python migita/test.py [string]")
         sys.exit(1)

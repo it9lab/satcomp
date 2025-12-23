@@ -23,15 +23,19 @@ $ pip install pipenv
 $ pipenv sync
 5. graphvizもインストールする
 $ brew install graphviz
-6. 実行
+6-1. 実行
 $ pipenv run python src/cs_solver.py --str abracadabra
+6-2. 入力した文字列に対してcs_solver.py, rlslp_solver.py, slp_solver.pyを順に実行し，それぞれjsonではなく画像として出力
+$ pipenv run python migita/test.py abracadabra
+6-3. ランダムに生成された文字列に対して三つのソルバーを実行する，これを繰り返す
+$ pipenv run python migita/test.py
 
-位置関係
+上の手順で作られるファイル構造
 conda(satcomp){ (conda listで確認可能)
     graphviz
     pip(python3.8){ (pip listで確認可能)
         pipenv{ (pipenv graphで確認可能)
-            packages (written in pipfile)
+            pipfileに記述されているパッケージ
         }
     }
 }

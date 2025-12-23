@@ -5,7 +5,7 @@ import subprocess
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
-        print("Usage: python src/json2img.py [solver_type(slp/rlslp/cs)] [string]")
+        print("Usage: python migita/json2img.py [solver_type(slp/rlslp/cs)] [string]")
         sys.exit(1)
     solver_type = sys.argv[1]
     text = sys.argv[2]
@@ -29,7 +29,7 @@ if __name__ == "__main__":
     rank_nodes = []  # Collect nodes with their starting index for ordering
     num_csref = 0
 
-    dot_str += "  graph [splines=polyline];\n"  # Use polyline edges for clarity
+    dot_str += "  graph [splines=curved, sep=1.0, overlap=false];\n"  # Use polyline edges for clarity
 
     # Process parent nodes in the order of their appearance in the text
     for parent, children in sorted(factors.items(), key=lambda x: x[0][0]):
@@ -81,9 +81,9 @@ if __name__ == "__main__":
     dot_str += "}\n"
 
     # DOTファイルを書き込み
-    with open('dot/'+solver_type+'_json.dot', 'w') as f:
+    with open('migita/dot/'+solver_type+'_json.dot', 'w') as f:
         f.write(dot_str)
 
     # DOTファイルをPNGファイルに変換
-    subprocess.run(["dot", "-Tpng", "dot/"+solver_type+"_json.dot", "-o", "img/"+solver_type+".png"])
+    subprocess.run(["dot", "-Tpng", "migita/dot/"+solver_type+"_json.dot", "-o", "migita/img/"+solver_type+".png"])
     # os.system('dot -Tpng result.dot -o result/' + text + '.png')
