@@ -6,6 +6,5 @@ __pycache__/
 .tox/
 
 .history
-dot
-img
-log
+for_cs_test/log
+for_cs_test/outputs/*
