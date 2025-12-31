@@ -2,25 +2,27 @@ import os
 import sys
 import random
 import argparse
-from logging import CRITICAL, DEBUG, INFO, Formatter, StreamHandler, getLogger
-from typing import Optional, Union
-import json
 import ast
+from typing import Optional
+import time
 
 from pysat.card import CardEnc
 from pysat.examples.rc2 import RC2
 from pysat.formula import WCNF
 
 import subprocess
-from slp import SLPExp, SLPType
 
-from cs_solver import smallest_CollageSystem, CSExp
+from cs_solver import smallest_CollageSystem
 from rlslp_solver import smallest_RLSLP
 from slp_solver import smallest_SLP
+from slp import SLPExp
+
+SIZE_W = 2
+TIME_W = 9
+TIME_PREC = 4
 
 # ファクターをツリー構造で可視化
-def factors2img(factors: dict, solver_type: str, text: Union[str, bytes]):
-    name = text.decode("utf-8") if isinstance(text, (bytes, bytearray)) else text
+def factors2img(factors: dict, solver_type: str, text: str) -> int:
 
     # factorsをdotファイルに変換
     dot_str = "digraph G {\n"
@@ -77,7 +79,7 @@ def factors2img(factors: dict, solver_type: str, text: Union[str, bytes]):
     num_phrases = len(rank_nodes_sorted)
     alphabet_size = len(set(text))
 
-    size = num_phrases + alphabet_size + num_csref - 2
+    size = num_phrases - 2 + alphabet_size + num_csref
 
     dot_str += rank_str
     dot_str += "  ordering=out;\n"
@@ -86,118 +88,133 @@ def factors2img(factors: dict, solver_type: str, text: Union[str, bytes]):
 
     # ディレクトリ作成
     os.makedirs("for_cs_test/outputs", exist_ok=True)
-    os.makedirs(f"for_cs_test/outputs/{name}", exist_ok=True)
+    os.makedirs(f"for_cs_test/outputs/{text}", exist_ok=True)
 
     # DOTファイルを書き込み
-    with open(f"for_cs_test/outputs/{name}/{solver_type}.dot", "w", encoding="utf-8") as f:
+    with open(f"for_cs_test/outputs/{text}/{solver_type}.dot", "w", encoding="utf-8") as f:
         f.write(dot_str)
 
     subprocess.run([
         "dot", "-Tpng",
-        f"for_cs_test/outputs/{name}/{solver_type}.dot",
-        "-o", f"for_cs_test/outputs/{name}/{solver_type}.png",
+        f"for_cs_test/outputs/{text}/{solver_type}.dot",
+        "-o", f"for_cs_test/outputs/{text}/{solver_type}.png",
     ])
     # os.system('dot -Tpng result.dot -o result/' + text + '.png')
 
     return size
 
 # すべての文法圧縮による最小文字列分解を実行し，結果を比較
-def run_all_solvers(text: bytes, score: dict = {"slp":0, "rlslp":0, "cs":0, "total":0}):
+def run_all_solvers(text: bytes):
     # input("Press Enter key to start the loop...")
-    print(f"string : {text}")
+    print(f"Input text: {text.decode('utf-8')}")
 
     size = {}
-    for solver_type in ["cs", "rlslp", "slp"]: 
+    time_prep = {}
+    time_total = {}
+
+    for solver_type in ["CS", "RLSLP", "SLP"]: 
         sol_factors = {}
 
-        if solver_type == "cs":
-            sol_factors = smallest_CollageSystem(text)
-        elif solver_type == "rlslp":
-            sol_factors = smallest_RLSLP(text)
+        exp = SLPExp.create()
+
+        if solver_type == "CS":
+            # t0 = time.perf_counter()
+            sol_factors = smallest_CollageSystem(text, exp)
+            # print(time.perf_counter() - t0)
+
+        elif solver_type == "RLSLP":
+            sol_factors = smallest_RLSLP(text, exp)
+
         else:
-            sol_factors = smallest_SLP(text)
+            sol_factors = smallest_SLP(text, exp)
         
         root, factors = ast.literal_eval(str(sol_factors))
         
         size[solver_type] = factors2img(factors, solver_type, text.decode("utf-8"))
+        time_prep[solver_type] = exp.time_prep
+        time_total[solver_type] = exp.time_total
+        assert size[solver_type] != exp.factor_size
 
-        if solver_type != "cs":
-            print(f"{solver_type} size : {size[solver_type]}")
-        else:
-            print(f"{solver_type} size : {size[solver_type]}")
+        print(f"Smallest {solver_type.upper()} Size: {size[solver_type]}")
 
-    # Collage SystemのサイズがSLPやRLSLPのサイズを超えていないか確認
-    if size["cs"] > size["slp"] or size["cs"] > size["rlslp"]:
-        print("cs is larger than SLP or RLSLP size.")
+    return size, time_prep, time_total
 
-        os.makedirs("for_cs_test/log", exist_ok=True)
-        with open('for_cs_test/log/error.log', 'a') as f:
-            f.write(text.decode("utf-8") + ',' +
-                    " cs:" + str(size["cs"]) + 
-                    " rlslp:" + str(size["rlslp"]) +  
-                    " slp:" + str(size["slp"]) + "\n")
+def evaluate_sizes(text: bytes, size: dict, score: dict = {"SLP":0, "RLSLP":0, "CS":0, "total":0}):
+    log_string = ""
+    # error: CS > RLSLP SLP
+    if size["CS"] > size["SLP"] or size["CS"] > size["RLSLP"]:
+        print("CS is larger than SLP or RLSLP size.")
+        log_string += "   Bad: "
 
-    # Collage Systemのサイズが最も小さいとき
-    elif size["cs"] < size["slp"] and size["cs"] < size["rlslp"]:
-        score["cs"] += 1
-        print("cs is the smallest.")
+    # error: RLSLP > SLP
+    elif size["RLSLP"] > size["SLP"]:
+        print("RLSLP is larger than SLP size.")
+        log_string += " BadRL: "
 
-        os.makedirs("for_cs_test/log", exist_ok=True)
-        with open('for_cs_test/log/good.log', 'a') as f:
-            f.write(text.decode("utf-8") + ',' +
-                    " cs:" + str(size["cs"]) + 
-                    " rlslp:" + str(size["rlslp"]) +  
-                    " slp:" + str(size["slp"]) + "\n")
-    
-    elif size["cs"] == size["rlslp"] and size["rlslp"] < size["slp"]:
-        score["rlslp"] += 1
+    # success: CS <= RLSLP <= SLP
+    # success: CS = RLSLP <= SLP
+    elif size["CS"] == size["RLSLP"]:
+        score["RLSLP"] += 1
+        log_string += "Normal: "
 
-        os.makedirs("for_cs_test/log", exist_ok=True)
-        with open('for_cs_test/log/other.log', 'a') as f:
-            f.write(text.decode("utf-8") + ',' +
-                    " cs:" + str(size["cs"]) + 
-                    " rlslp:" + str(size["rlslp"]) +  
-                    " slp:" + str(size["slp"]) + "\n")
-    
+    # success: CS < RLSLP <= SLP
     else:
-        score["slp"] += 1 
+        print("CS size is the smallest.")
+        score["CS"] += 1
+        log_string += f"-{size['RLSLP']-size['CS']}Good: "
 
-        os.makedirs("for_cs_test/log", exist_ok=True)
-        with open('for_cs_test/log/other.log', 'a') as f:
-            f.write(text.decode("utf-8") + ',' +
-                    " cs:" + str(size["cs"]) + 
-                    " rlslp:" + str(size["rlslp"]) +  
-                    " slp:" + str(size["slp"]) + "\n")
-    
+    log_string += f"{text.decode('utf-8')}, Smallest CS: {size['CS']:{SIZE_W}}|RLSLP: {size['RLSLP']:{SIZE_W}}|SLP: {size['SLP']:{SIZE_W}},"
+
+    with open("for_cs_test/cs_test_log.txt", "a", encoding="utf-8") as log_file:
+        log_file.write(log_string)
+
     score["total"] += 1
 
+def print_times(time_prep: dict, time_total: dict):
+    print(f" time_prep : SLP {time_prep['SLP']:{TIME_W}.{TIME_PREC}f}, RLSLP {time_prep['RLSLP']:{TIME_W}.{TIME_PREC}f}, CS {time_prep['CS']:{TIME_W}.{TIME_PREC}f}")
+    print(f"time_total : SLP {time_total['SLP']:{TIME_W}.{TIME_PREC}f}, RLSLP {time_total['RLSLP']:{TIME_W}.{TIME_PREC}f}, CS {time_total['CS']:{TIME_W}.{TIME_PREC}f}")
+
+    log_string = ""
+    # 実行時間をログに記録
+    log_string += f" Time_prep CS: {time_prep['CS']:{TIME_W}.{TIME_PREC}f}|RLSLP: {time_prep['RLSLP']:{TIME_W}.{TIME_PREC}f}|SLP: {time_prep['SLP']:{TIME_W}.{TIME_PREC}f},"
+    log_string += f" Time_total CS: {time_total['CS']:{TIME_W}.{TIME_PREC}f}|RLSLP: {time_total['RLSLP']:{TIME_W}.{TIME_PREC}f}|SLP: {time_total['SLP']:{TIME_W}.{TIME_PREC}f}\n"
+    with open("for_cs_test/cs_test_log.txt", "a", encoding="utf-8") as log_file:
+        log_file.write(log_string)
+
 # スコアを表示
-def print_score(score: dict):
-    print(f"score : SLP {score['slp']}, RLSLP {score['rlslp']}, CS {score['cs']}")
-    print(f"total : {score['total']}")
-    print("-" * 40)
+def print_scores(score: dict):
+    print(f"number of attempts : {score['total']}")
+    print(f"score : SLP {score['SLP']}, RLSLP {score['RLSLP']}, CS {score['CS']}")
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Compute Minimum Internal Collage System.")
     parser.add_argument("--str", type=str, help="input string", default="")
-    parser.add_argument("--random", action="store_true", help="use random string")
+    parser.add_argument("--random", type=int, help="length of random string", default=0)
     args = parser.parse_args()
-    if args.str == True and args.str == "":
-        parser.print_help()
-        sys.exit()
 
     return args
 
 if __name__ == "__main__":
-    args = parse_args() # 解析するデータの指定
+    args = parse_args()
 
-    text = bytes()
     if args.str != "":
         text = bytes(args.str, "utf-8")
-        run_all_solvers(text)
+
+        size, tprep, ttotal = run_all_solvers(text)
+        evaluate_sizes(text, size)
+        print_times(tprep, ttotal)
+
     elif args.random:
+        score = {"SLP":0, "RLSLP":0, "CS":0, "total":0}
         while True:
-            text = bytes("".join(random.choices("AB", k=40)), "utf-8")
-            score = {"slp":0, "rlslp":0, "cs":0, "total":0}
-            run_all_solvers(text, score)
-            print_score(score)
+            text = bytes("".join(random.choices("ABC", k=args.random)), "utf-8")
+
+            size, tprep, ttotal = run_all_solvers(text)
+            evaluate_sizes(text, size, score)
+            print_times(tprep, ttotal)
+            print_scores(score)
+
+            print("-" * 40)
+    else:
+        print("Please provide either --str or --random argument.")

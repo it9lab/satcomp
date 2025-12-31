@@ -12,39 +12,17 @@ from pysat.card import CardEnc
 from pysat.examples.rc2 import RC2
 from pysat.formula import WCNF
 
-import subprocess
-
 from mysat import (
     Enum,
     Literal,
     LiteralManager,
     pysat_and,
-    pysat_atmost,
     pysat_if,
     pysat_iff,
     pysat_or,
+    pysat_atmost,
 )
 from slp import SLPExp, SLPType
-
-#json出力に参照の深さを追加するための変更
-from dataclasses import dataclass
-@dataclass
-class CSExp(SLPExp):
-    depth: int = 0
-
-    @classmethod
-    def create(cls) -> "CSExp":
-        # 既存の初期化ロジックは SLPExp.create() に寄せつつ、
-        # 実体を CSExp にする（slp.py を触らない）
-        base = super().create()  # ここは型的には SLPExp
-        if isinstance(base, cls):
-            return base
-
-        # CSExp インスタンスを（__init__を呼ばずに）作って中身をコピー
-        obj = cls.__new__(cls)
-        obj.__dict__ = dict(getattr(base, "__dict__", {}))
-        obj.depth = 0
-        return obj
 
 logger = getLogger(__name__)
 handler = StreamHandler()
@@ -959,7 +937,7 @@ def recover_cs(text: bytes, pstartl, refs_by_slpreferrer, refs_by_rlreferrer, re
     return (root, cs)
 
 # 最小のSLPを計算,SLP分解したときの解析木を返す関数
-def smallest_CollageSystem(text: bytes, exp: Optional[CSExp] = None) -> SLPType:
+def smallest_CollageSystem(text: bytes, exp: Optional[SLPExp] = None) -> SLPType:
     """
     Compute the smallest SLP.
     """
@@ -1021,18 +999,14 @@ def smallest_CollageSystem(text: bytes, exp: Optional[CSExp] = None) -> SLPType:
                 assert lm.getid(lm.lits.dref, j, l2, i) in sol
                 # dref[j, l2] = i
 
-    depth = {}
-    depth_lst = []
-    for i in range(0, n):
-        for l in range(1, n - i + 1):
-            assert lm.getid(lm.lits.depth, i, l, 0) in sol
-            depth[i, l] = 0
-            for d in range(1, n):
-                if lm.getid(lm.lits.depth, i, l, d) in sol and d > depth[i, l]:
-                    depth[i, l] = d
-    
-    depth_lst = list(depth.values())
-    max_depth = len(list(set(depth_lst))) - 1
+    # depth = {}
+    # for i in range(0, n):
+    #     for l in range(1, n - i + 1):
+    #         assert lm.getid(lm.lits.depth, i, l, 0) in sol
+    #         depth[i, l] = 0
+    #         for d in range(1, n):
+    #             if lm.getid(lm.lits.depth, i, l, d) in sol and d > depth[i, l]:
+    #                 depth[i, l] = d
 
     # print(f"csrefs = {csrefs}")
     # MAX-SATの解からcsを生成
@@ -1048,9 +1022,6 @@ def smallest_CollageSystem(text: bytes, exp: Optional[CSExp] = None) -> SLPType:
         exp.factors = f"{(root, cs)}"
         exp.factor_size = cssize  # len(internal_nodes) + len(set(text))
         exp.fill(wcnf)
-
-        # Collage Systemの深さを保存
-        exp.depth = max_depth
         
     check = bytes(cs2str(root, cs))
 
@@ -1099,7 +1070,7 @@ if __name__ == "__main__":
     elif args.log_level == "CRITICAL":
         logger.setLevel(CRITICAL)
 
-    exp = CSExp.create() # 出力したいフォーマットの作成
+    exp = SLPExp.create() # 出力したいフォーマットの作成
     exp.algo = "cs-sat"
     exp.file_name = os.path.basename(args.file)
     exp.file_len = len(text)

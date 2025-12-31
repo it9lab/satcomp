@@ -6,5 +6,5 @@ __pycache__/
 .tox/
 
 .history
-for_cs_test/log
-for_cs_test/outputs/*
+for_cs_test/cs_test_log.txt
+for_cs_test/outputs/
